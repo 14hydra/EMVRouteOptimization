@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/emvro/__init__.py
+src/emvro/depots.py
+src/emvro/geometry.py
+src/emvro/opendata.py
+src/emvro.egg-info/PKG-INFO
+src/emvro.egg-info/SOURCES.txt
+src/emvro.egg-info/dependency_links.txt
+src/emvro.egg-info/requires.txt
+src/emvro.egg-info/top_level.txt

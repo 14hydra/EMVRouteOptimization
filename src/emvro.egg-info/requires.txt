@@ -1,0 +1,7 @@
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+shapely>=2.0
+pyproj>=3.6
+tqdm>=4.66
+networkx>=3.1
