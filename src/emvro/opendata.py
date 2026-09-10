@@ -99,8 +99,14 @@ def download_dataset(
     page_size: int = 1000,
     where: str | None = None,
     years: Iterable[int] | None = None,
+    start: str | None = None,
+    end: str | None = None,
 ) -> Path:
-    """Download a named dataset to CSV under out_dir. Returns output path."""
+    """Download a named dataset to CSV under out_dir. Returns output path.
+
+    For EMS incidents, prefer ``start``/``end`` ISO datetimes (full calendar days)
+    over a bare ``limit`` on newest rows — the latter truncates overnight hours.
+    """
     if key not in DATASETS:
         raise KeyError(f"Unknown dataset key {key!r}. Known: {sorted(DATASETS)}")
     meta = DATASETS[key]
@@ -113,19 +119,28 @@ def download_dataset(
     offset = 0
     target = limit if limit is not None else 10**12
 
-    # Optional year filter for EMS incidents
+    # Optional year / datetime window filter for EMS incidents
     where_parts = []
     if meta.get("default_where"):
         where_parts.append(f"({meta['default_where']})")
     if where:
         where_parts.append(f"({where})")
-    if years and key == "ems_incidents":
+    if start and end and key == "ems_incidents":
+        where_parts.append(
+            f"(incident_datetime between '{start}' and '{end}')"
+        )
+    elif years and key == "ems_incidents":
         year_clauses = [
             f"incident_datetime between '{y}-01-01T00:00:00' and '{y}-12-31T23:59:59'"
             for y in years
         ]
         where_parts.append("(" + " OR ".join(year_clauses) + ")")
     where_q = " AND ".join(where_parts) if where_parts else None
+
+    # Date windows: ascending so overnight hours are not clipped by DESC+limit.
+    order = None
+    if key == "ems_incidents":
+        order = "incident_datetime ASC" if (start and end) else "incident_datetime DESC"
 
     pbar = tqdm(total=min(target, 50_000) if limit else None, desc=f"download:{key}", unit="row")
     while len(rows) < target:
@@ -136,7 +151,7 @@ def download_dataset(
             offset=offset,
             where=where_q,
             select=select,
-            order="incident_datetime DESC" if key == "ems_incidents" else None,
+            order=order,
         )
         if not batch:
             break
@@ -161,6 +176,8 @@ def download_dataset(
                 "columns": list(df.columns),
                 "description": meta.get("description"),
                 "where": where_q,
+                "start": start,
+                "end": end,
             },
             indent=2,
         )

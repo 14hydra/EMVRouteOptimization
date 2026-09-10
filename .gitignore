@@ -10,3 +10,8 @@ data/processed/*
 *.log
 .env
 .ipynb_checkpoints/
+
+# OSMnx / Overpass HTTP cache (often >100MB — exceeds GitHub limit)
+cache/
+**/cache/
+*.graphml

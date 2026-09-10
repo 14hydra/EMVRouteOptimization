@@ -27,7 +27,24 @@ def main():
         type=int,
         nargs="*",
         default=[2022, 2023, 2024],
-        help="EMS incident years to prefer (SODA filter)",
+        help="EMS incident years to prefer when --start/--end not set",
+    )
+    p.add_argument(
+        "--start",
+        type=str,
+        default=None,
+        help="EMS window start ISO (e.g. 2024-06-01T00:00:00). Prefer over year+limit.",
+    )
+    p.add_argument(
+        "--end",
+        type=str,
+        default=None,
+        help="EMS window end ISO (e.g. 2024-06-07T23:59:59).",
+    )
+    p.add_argument(
+        "--ems-only",
+        action="store_true",
+        help="Only refresh ems_incidents.csv (skip facilities / alarm boxes).",
     )
     p.add_argument(
         "--alarm-box-limit",
@@ -41,34 +58,35 @@ def main():
     for k, meta in DATASETS.items():
         print(f"  - {k}: {meta['id']} — {meta['description']}")
 
-    for key in ("fdny_firehouses", "ems_stations", "hospital_bays", "modzcta"):
-        path = download_dataset(key, args.out, limit=5000)
-        print("Wrote", path)
+    if not args.ems_only:
+        for key in ("fdny_firehouses", "ems_stations", "hospital_bays", "modzcta"):
+            path = download_dataset(key, args.out, limit=5000)
+            print("Wrote", path)
 
-    # Alarm boxes are numerous; cap for local development.
-    boxes = download_dataset("alarm_boxes", args.out, limit=args.alarm_box_limit)
-    print("Wrote", boxes)
+        boxes = download_dataset("alarm_boxes", args.out, limit=args.alarm_box_limit)
+        print("Wrote", boxes)
+
+        lion_note = args.out / "lion.README.txt"
+        lion_note.write_text(
+            "LION Open Data ID: 2v4z-66xt\n"
+            "Street path features currently use a cached OSMNx drive graph "
+            "(scripts/build_osm_graph.py) with LION as a planned swap-in.\n"
+        )
+        print("Wrote", lion_note)
 
     try:
         ems = download_dataset(
             "ems_incidents",
             args.out,
             limit=args.limit,
-            years=args.years,
+            years=None if (args.start and args.end) else args.years,
+            start=args.start,
+            end=args.end,
         )
     except Exception as exc:  # noqa: BLE001
-        print("Year filter failed (%s); downloading without year filter…" % exc)
+        print("Primary EMS filter failed (%s); downloading without year/date filter…" % exc)
         ems = download_dataset("ems_incidents", args.out, limit=args.limit, years=None)
     print("Wrote", ems)
-
-    lion_note = args.out / "lion.README.txt"
-    lion_note.write_text(
-        "LION Open Data ID: 2v4z-66xt\n"
-        "Download the full street centerline extract from NYC DCP / Open Data GeoJSON when ready.\n"
-        "Synthetic CSLs currently use FDNY alarm-box intersections + EMS volume weights;\n"
-        "OSM/LION intersection extraction is the next upgrade path.\n"
-    )
-    print("Wrote", lion_note)
 
 
 if __name__ == "__main__":

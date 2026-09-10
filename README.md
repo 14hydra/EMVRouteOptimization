@@ -13,14 +13,19 @@ It does **not** publish the GPS of the unit at assignment time (HIPAA / privacy)
 
 ### Fix in this repo
 
+**Scope: ambulances only** (EMS CAD). Fire trucks / firehouses are out of scope.
+
 We reconstruct usable OD pairs by:
 
 1. Treating each incident ZIP’s **MODZCTA centroid** as the destination.
 2. Mapping `incident_dispatch_area` (e.g. `K6`, `B1`) to a borough sector.
 3. Choosing the nearest **EMS/ambulance station** or **hospital bay** (HOSPITAL / ACUTE CARE HOSPITAL from City Facilities — covers NYC H+H and voluntary hospitals) in that borough.
-4. Falling back to the nearest **FDNY firehouse** (`hc8x-tcnd`).
-5. In **hybrid** mode, using a **synthetic CSL** (FDNY alarm-box intersection in a high-volume ZIP) when it is closer than the best static depot — a proxy for an already-on-the-road unit.
-6. Flagging each row with `start_source` / `depot_layer` / `start_mode`.
+4. In **hybrid** mode, using a **synthetic CSL** (FDNY alarm-box intersection in a high-volume ZIP) when it is closer than the best static depot — a proxy for an already-on-the-road unit.
+5. Flagging each row with `start_source` / `depot_layer` / `start_mode`.
+
+For the **travel-time model**, we do not commit to one true start: we feed
+`station_km` / `hospital_km` / `csl_km` together so LightGBM can learn times
+under origin uncertainty (see `docs/travel_time_training.md`).
 
 ## Chosen datasets
 
@@ -30,7 +35,6 @@ We reconstruct usable OD pairs by:
 | Preferred EMV starts | City Facilities — EMS/ambulance stations | `ji82-xba5` |
 | Hospital bay starts | City Facilities — HOSPITAL / ACUTE CARE HOSPITAL | `ji82-xba5` |
 | CSL intersection proxies | In-Service Alarm Box Locations | `v57i-gtxb` |
-| Fallback starts | FDNY Firehouse Listing | `hc8x-tcnd` |
 | Incident ZIP geometry | Modified Zip Code Tabulation Areas (MODZCTA) | `pri4-ifjk` |
 | Street network / widths | NYC LION | `2v4z-66xt` |
 | Street attributes | OpenStreetMap (NYC extract) | OSM |
@@ -51,9 +55,16 @@ python scripts/build_od_pairs.py --start-mode hybrid
 export GOOGLE_MAPS_API_KEY=your_key_here
 PYTHONPATH=src python scripts/classify_origins_with_gmaps.py --limit 200
 PYTHONPATH=src python scripts/visualize_data.py
+
+# Travel-time model (slides Step 4) — ambulances only
+PYTHONPATH=src python scripts/build_osm_graph.py   # once
+PYTHONPATH=src python scripts/build_travel_time_training_set.py
+PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
+PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set route
+PYTHONPATH=src python scripts/analyze_travel_time_model.py --feature-set full
 ```
 
-Figures land in `data/figures/` (PNGs + interactive `emv_nyc_map.html`). See `docs/gmaps_control.md` for the station vs on-road classification rule.
+See `docs/travel_time_training.md` and `docs/gmaps_control.md`. Model eval figures: `data/figures/model_eval_full/`.
 
 ## Layout
 

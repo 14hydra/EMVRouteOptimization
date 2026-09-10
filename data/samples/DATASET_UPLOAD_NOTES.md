@@ -1,6 +1,6 @@
 # Sample upload pack for Gemini ASI chat
 
-- `od_pairs_sample.csv`: 150 OD pairs (`start_mode=hybrid`)
+- `od_pairs_sample.csv`: 200 OD pairs (`start_mode=hybrid`)
 - `ems_stations_sample.csv`: dedicated EMS/ambulance stations
 - `hospital_bays_sample.csv`: HOSPITAL / ACUTE CARE HOSPITAL (H+H + voluntary)
 - `synthetic_csls_sample.csv`: volume-weighted alarm-box intersection CSLs

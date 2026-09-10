@@ -43,6 +43,8 @@ def main():
 
     ems = pd.read_csv(args.raw / "ems_incidents.csv", low_memory=False)
     firehouses = pd.read_csv(args.raw / "fdny_firehouses.csv", low_memory=False)
+    # Ambulance-only project: do not use firehouses as origins.
+    firehouses = firehouses.iloc[0:0]
     modzcta = pd.read_csv(args.raw / "modzcta.csv", low_memory=False)
     ems_stations = _maybe_csv(args.raw / "ems_stations.csv")
     hospital_bays = _maybe_csv(args.raw / "hospital_bays.csv")

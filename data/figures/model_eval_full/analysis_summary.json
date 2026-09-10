@@ -1,0 +1,57 @@
+{
+  "metrics": {
+    "n_train": 17448,
+    "n_test": 4362,
+    "mae_seconds": 265.8742747083277,
+    "rmse_seconds": 393.76949620022793,
+    "r2": 0.2019891841418746,
+    "median_abs_error_seconds": 188.62930737235695,
+    "mape_capped_pct": 73.41119034097049,
+    "baseline_mae_predict_median": 284.28954607977994,
+    "mae_improvement_vs_median_pct": 6.47764633817538,
+    "pct_within_3_min": 48.07427785419532,
+    "pct_within_5_min": 70.60981201283815,
+    "pct_within_10_min": 91.26547455295736,
+    "mean_actual_seconds": 596.0735900962861,
+    "median_actual_seconds": 479.0,
+    "bias_seconds": 12.515214300262658
+  },
+  "mae_by_borough_min": {
+    "MANHATTAN": 4.65,
+    "QUEENS": 4.48,
+    "BRONX": 4.44,
+    "BROOKLYN": 4.43,
+    "STATEN ISLAND": 2.86
+  },
+  "mae_by_origin_layer_min": {
+    "hospital_bay": 4.59,
+    "csl": 4.42,
+    "ems_station": 4.41
+  },
+  "mae_by_hour_min": {
+    "night 0\u20136": 3.78,
+    "morning 6\u201310": 4.35,
+    "midday 10\u201316": 5.2,
+    "evening 16\u201320": 4.54,
+    "late 20\u201324": 3.58
+  },
+  "mae_by_distance_min": {
+    "0\u20130.5": 4.51,
+    "0.5\u20131": 4.35,
+    "1\u20132": 4.13,
+    "2\u20134": 4.04,
+    "4\u20138": 2.95,
+    "8+": 3.35
+  },
+  "figures": [
+    "01_pred_vs_actual.png",
+    "02_residuals.png",
+    "03_mae_by_borough.png",
+    "04_mae_by_origin_layer.png",
+    "05_mae_by_hour.png",
+    "06_mae_by_distance.png",
+    "07_abs_error_cdf.png",
+    "08_calibration.png",
+    "09_feature_importance.png"
+  ]
+}
