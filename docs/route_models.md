@@ -33,12 +33,40 @@ PYTHONPATH=src python scripts/visualize_route_models.py
 
 Figures land in `data/figures/route_models/`:
 
+- `00_dashboard.png` — overview panel
 - `01_travel_time_comparison.png`
 - `02_distance_comparison.png`
-- `03_pct_vs_civilian.png`
+- `03_main_models_focus.png` — three main models vs civilian
 - `04_time_vs_distance.png`
 - `05_mcs_fitness.png`
-- `route_models_map.html` (paths overlaid)
+- `06_drl_learning_curve.png`
+- `route_models_map.html` — **multiple OD trips** across NYC; toggle models in the layer control
+- `multi_route_times.csv` — per-trip travel times for the map scenarios
+
+## Traffic & weather conditions (ASI eval variables)
+
+ASI Gemini evaluation called out **clear vs rain/snow**, **congestion**, and
+**bus-lane / ROW** contrasts. Those are wired into routing edge costs:
+
+| Regime | How it enters the graph |
+|---|---|
+| Traffic amount | Hour congestion prior (`clear_offpeak`, `clear_rush`, `night_clear`) — TomTom live flow can replace the prior later |
+| Weather | Open-Meteo factors (precip / snow / visibility / wind) from presets or `weather_hourly_nyc.csv` |
+| Bus lanes / ROW | EMV discounts on primary/trunk + `busway` edges; discount **grows** with congestion |
+
+Civilian GPS takes the full congestion × weather hit. EMV models take a reduced
+weather penalty and prefer priority corridors — so **% time saved vs civilian
+grows** under rush / rain / snow.
+
+```bash
+PYTHONPATH=src python scripts/run_condition_scenarios.py
+# also pull harshest hours from cached Open-Meteo:
+PYTHONPATH=src python scripts/run_condition_scenarios.py --with-open-meteo
+```
+
+Figures: `data/figures/route_models/conditions/`
+
+Presets live in `emvro.routing.conditions.CONDITION_PRESETS`.
 
 ## Upgrade path
 

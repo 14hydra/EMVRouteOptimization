@@ -1,0 +1,36 @@
+condition_id,condition_label,hour,congestion,wx_precip_mm,wx_snow_mm,weather_factor_civilian,weather_factor_emv,row_bonus,source,model,travel_minutes,distance_km,n_edges,minutes_saved_vs_civilian,pct_faster_vs_civilian
+clear_offpeak,Clear · off-peak,11,1.15,0.0,0.0,1.0,1.0,0.965,preset,control_civilian_time,8.623,5.91,80,0.0,0.0
+clear_offpeak,Clear · off-peak,11,1.15,0.0,0.0,1.0,1.0,0.965,preset,emv_dijkstra,8.538,5.954,84,0.084,0.98
+clear_offpeak,Clear · off-peak,11,1.15,0.0,0.0,1.0,1.0,0.965,preset,mipsstw_mcs,8.538,5.954,84,0.084,0.98
+clear_offpeak,Clear · off-peak,11,1.15,0.0,0.0,1.0,1.0,0.965,preset,composite_drl,8.538,5.954,84,0.084,0.98
+clear_offpeak,Clear · off-peak,11,1.15,0.0,0.0,1.0,1.0,0.965,preset,gbdt_router,8.56,6.141,85,0.062,0.72
+clear_rush,Clear · rush hour,17,1.55,0.0,0.0,1.0,1.0,0.8717,preset,control_civilian_time,10.624,5.91,80,0.0,0.0
+clear_rush,Clear · rush hour,17,1.55,0.0,0.0,1.0,1.0,0.8717,preset,emv_dijkstra,10.407,5.954,84,0.217,2.04
+clear_rush,Clear · rush hour,17,1.55,0.0,0.0,1.0,1.0,0.8717,preset,mipsstw_mcs,10.407,5.954,84,0.217,2.04
+clear_rush,Clear · rush hour,17,1.55,0.0,0.0,1.0,1.0,0.8717,preset,composite_drl,10.407,5.954,84,0.217,2.04
+clear_rush,Clear · rush hour,17,1.55,0.0,0.0,1.0,1.0,0.8717,preset,gbdt_router,10.433,6.141,85,0.19,1.79
+rain_rush,Rain · rush hour,17,1.6,4.5,0.0,1.281,1.1264,0.86,preset,control_civilian_time,12.157,5.91,80,0.0,0.0
+rain_rush,Rain · rush hour,17,1.6,4.5,0.0,1.281,1.1264,0.86,preset,emv_dijkstra,11.853,5.954,84,0.304,2.5
+rain_rush,Rain · rush hour,17,1.6,4.5,0.0,1.281,1.1264,0.86,preset,mipsstw_mcs,11.853,5.954,84,0.304,2.5
+rain_rush,Rain · rush hour,17,1.6,4.5,0.0,1.281,1.1264,0.86,preset,composite_drl,11.853,5.954,84,0.304,2.5
+rain_rush,Rain · rush hour,17,1.6,4.5,0.0,1.281,1.1264,0.86,preset,gbdt_router,11.878,6.141,85,0.279,2.29
+snow_am,Snow · morning,8,1.5,1.2,1.8,1.5934,1.267,0.8833,preset,control_civilian_time,13.075,5.91,80,0.0,0.0
+snow_am,Snow · morning,8,1.5,1.2,1.8,1.5934,1.267,0.8833,preset,emv_dijkstra,12.751,5.954,84,0.324,2.48
+snow_am,Snow · morning,8,1.5,1.2,1.8,1.5934,1.267,0.8833,preset,mipsstw_mcs,12.751,5.954,84,0.324,2.48
+snow_am,Snow · morning,8,1.5,1.2,1.8,1.5934,1.267,0.8833,preset,composite_drl,12.789,6.446,71,0.286,2.18
+snow_am,Snow · morning,8,1.5,1.2,1.8,1.5934,1.267,0.8833,preset,gbdt_router,12.773,6.141,85,0.302,2.31
+night_clear,Clear · night,2,1.05,0.0,0.0,1.0,1.0,0.9883,preset,control_civilian_time,8.042,5.91,80,0.0,0.0
+night_clear,Clear · night,2,1.05,0.0,0.0,1.0,1.0,0.9883,preset,emv_dijkstra,7.982,5.954,84,0.059,0.74
+night_clear,Clear · night,2,1.05,0.0,0.0,1.0,1.0,0.9883,preset,mipsstw_mcs,7.982,5.954,84,0.059,0.74
+night_clear,Clear · night,2,1.05,0.0,0.0,1.0,1.0,0.9883,preset,composite_drl,7.982,5.954,84,0.059,0.74
+night_clear,Clear · night,2,1.05,0.0,0.0,1.0,1.0,0.9883,preset,gbdt_router,8.003,6.141,85,0.039,0.48
+wx_20240606_16,Open-Meteo 2024-06-06 16:00:00,16,1.45,12.5,0.0,1.22,1.099,0.895,open_meteo,control_civilian_time,11.141,5.91,80,0.0,0.0
+wx_20240606_16,Open-Meteo 2024-06-06 16:00:00,16,1.45,12.5,0.0,1.22,1.099,0.895,open_meteo,emv_dijkstra,10.917,5.954,84,0.223,2.01
+wx_20240606_16,Open-Meteo 2024-06-06 16:00:00,16,1.45,12.5,0.0,1.22,1.099,0.895,open_meteo,mipsstw_mcs,10.917,5.954,84,0.223,2.01
+wx_20240606_16,Open-Meteo 2024-06-06 16:00:00,16,1.45,12.5,0.0,1.22,1.099,0.895,open_meteo,composite_drl,10.917,5.954,84,0.223,2.01
+wx_20240606_16,Open-Meteo 2024-06-06 16:00:00,16,1.45,12.5,0.0,1.22,1.099,0.895,open_meteo,gbdt_router,10.942,6.141,85,0.199,1.79
+wx_20240606_04,Open-Meteo 2024-06-06 04:00:00,4,1.05,11.5,0.0,1.22,1.099,0.9883,open_meteo,control_civilian_time,8.808,5.91,80,0.0,0.0
+wx_20240606_04,Open-Meteo 2024-06-06 04:00:00,4,1.05,11.5,0.0,1.22,1.099,0.9883,open_meteo,emv_dijkstra,8.721,5.954,84,0.087,0.98
+wx_20240606_04,Open-Meteo 2024-06-06 04:00:00,4,1.05,11.5,0.0,1.22,1.099,0.9883,open_meteo,mipsstw_mcs,8.721,5.954,84,0.087,0.98
+wx_20240606_04,Open-Meteo 2024-06-06 04:00:00,4,1.05,11.5,0.0,1.22,1.099,0.9883,open_meteo,composite_drl,8.721,5.954,84,0.087,0.98
+wx_20240606_04,Open-Meteo 2024-06-06 04:00:00,4,1.05,11.5,0.0,1.22,1.099,0.9883,open_meteo,gbdt_router,8.74,6.141,85,0.067,0.76

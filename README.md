@@ -38,6 +38,8 @@ under origin uncertainty (see `docs/travel_time_training.md`).
 | Incident ZIP geometry | Modified Zip Code Tabulation Areas (MODZCTA) | `pri4-ifjk` |
 | Street network / widths | NYC LION | `2v4z-66xt` |
 | Street attributes | OpenStreetMap (NYC extract) | OSM |
+| Hourly weather | Open-Meteo archive (NYC) | no key; cached under `data/processed/weather_hourly_nyc.csv` |
+| Congestion prior | Hour-of-day BPR-style multiplier (TomTom/GMaps traffic optional later) | in `emvro.routing.conditions` |
 
 ## Quick start
 
@@ -83,6 +85,14 @@ PYTHONPATH=src python scripts/run_route_models.py
 | GBDT router | `src/emvro/routing/gbdt_router.py` |
 
 See `docs/route_models.md`. Figures: `data/figures/route_models/`.
+
+Traffic × weather condition grid (ASI eval — clear / rush / rain / snow / night):
+
+```bash
+PYTHONPATH=src python scripts/run_condition_scenarios.py --with-open-meteo
+```
+
+Figures: `data/figures/route_models/conditions/` (civilian vs EMV ROW payoff by regime).
 
 ## Layout
 

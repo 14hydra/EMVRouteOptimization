@@ -1,19 +1,190 @@
 {
   "figures": [
+    "00_dashboard.png",
     "01_travel_time_comparison.png",
     "02_distance_comparison.png",
+    "03_main_models_focus.png",
     "03_pct_vs_civilian.png",
     "04_time_vs_distance.png",
-    "05_mcs_fitness.png"
+    "05_mcs_fitness.png",
+    "06_drl_learning_curve.png"
   ],
-  "map": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/route_models/route_models_map.html",
-  "demo_json": "/Users/sarpakalin/git/EMVRouteOptimization/data/processed/route_models_demo.json",
-  "models": [
-    "control_distance",
-    "control_civilian_time",
-    "emv_dijkstra",
-    "mipsstw_mcs",
-    "composite_drl",
-    "gbdt_router"
-  ]
+  "map": null,
+  "results": [
+    {
+      "model": "control_civilian_time",
+      "ok": true,
+      "travel_seconds": 692.9,
+      "travel_minutes": 11.55,
+      "distance_km": 5.91,
+      "n_edges": 80,
+      "pct_vs_civilian_control": 0.0,
+      "meta": {
+        "weight": "weight_civilian"
+      }
+    },
+    {
+      "model": "control_distance",
+      "ok": true,
+      "travel_seconds": 695.1,
+      "travel_minutes": 11.59,
+      "distance_km": 5.91,
+      "n_edges": 80,
+      "pct_vs_civilian_control": -0.33,
+      "meta": {
+        "weight": "weight_length"
+      }
+    },
+    {
+      "model": "emv_dijkstra",
+      "ok": true,
+      "travel_seconds": 691.8,
+      "travel_minutes": 11.53,
+      "distance_km": 5.954,
+      "n_edges": 84,
+      "pct_vs_civilian_control": 0.15,
+      "meta": {
+        "weight": "weight_emv"
+      }
+    },
+    {
+      "model": "mipsstw_mcs",
+      "ok": true,
+      "travel_seconds": 691.8,
+      "travel_minutes": 11.53,
+      "distance_km": 5.954,
+      "n_edges": 84,
+      "pct_vs_civilian_control": 0.15,
+      "meta": {
+        "fitness": 691.7882526648068,
+        "deadline_s": 726.3776652980472,
+        "late_seconds": 0.0,
+        "n_iterations": 18,
+        "n_nests": 10
+      }
+    },
+    {
+      "model": "composite_drl",
+      "ok": true,
+      "travel_seconds": 691.8,
+      "travel_minutes": 11.53,
+      "distance_km": 5.954,
+      "n_edges": 84,
+      "pct_vs_civilian_control": 0.15,
+      "meta": {
+        "episodes": 80,
+        "subgraph_nodes": 2502,
+        "subgraph_edges": 5058,
+        "train_best_s": 691.7882526648068,
+        "q_entries": 315,
+        "decode": "train_best",
+        "reaches_dest": true
+      }
+    },
+    {
+      "model": "gbdt_router",
+      "ok": true,
+      "travel_seconds": 692.9,
+      "travel_minutes": 11.55,
+      "distance_km": 5.91,
+      "n_edges": 80,
+      "pct_vs_civilian_control": 0.0,
+      "meta": {
+        "weight": "weight_gbdt",
+        "hour": 17,
+        "n_features": 9
+      }
+    }
+  ],
+  "drl_meta": {
+    "episodes": 80,
+    "subgraph_nodes": 2502,
+    "subgraph_edges": 5058,
+    "train_best_s": 691.7882526648068,
+    "train_curve": [
+      712.6775117327338,
+      712.6775117327338,
+      722.092713944572,
+      712.6775117327338,
+      715.4068633554791,
+      715.4068633554791,
+      718.4163721376513,
+      723.9123933123758,
+      715.6956383680456,
+      715.4068633554791,
+      710.85783236493,
+      713.5871839876753,
+      713.5871839876753,
+      723.9123933123758,
+      716.5966927698474,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      714.1952429184194,
+      712.6775117327338,
+      712.6775117327338,
+      714.1779071823601,
+      713.5871839876753,
+      710.85783236493,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      691.7882526648068,
+      712.6775117327338,
+      716.9245945411645,
+      718.4163721376513,
+      714.1952429184194,
+      715.4068633554791,
+      715.4068633554791,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      723.9123933123758,
+      715.4068633554791,
+      714.1952429184194,
+      691.7882526648068,
+      712.6775117327338,
+      715.4068633554791,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      710.85783236493,
+      718.4163721376513,
+      710.85783236493,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      691.7882526648068,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      691.7882526648068,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      716.9245945411645,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      728.8207105427216,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338,
+      712.6775117327338
+    ],
+    "q_entries": 315,
+    "decode": "train_best",
+    "reaches_dest": true
+  }
 }

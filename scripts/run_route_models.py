@@ -51,8 +51,8 @@ def main():
     p.add_argument("--dest-lon", type=float, default=-74.0060)
     p.add_argument("--hour", type=int, default=17)
     p.add_argument("--deadline-s", type=float, default=None, help="Soft time window for MIPSSTW")
-    p.add_argument("--mcs-iters", type=int, default=15)
-    p.add_argument("--drl-episodes", type=int, default=25)
+    p.add_argument("--mcs-iters", type=int, default=18)
+    p.add_argument("--drl-episodes", type=int, default=80)
     p.add_argument("--out", type=Path, default=ROOT / "data" / "processed" / "route_models_demo.json")
     args = p.parse_args()
 

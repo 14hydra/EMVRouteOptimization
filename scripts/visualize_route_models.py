@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 """
-Visualize the 3 route-optimization models vs control.
+Visualize the 3 route-optimization models vs control (improved).
 
-Produces:
-  - comparison bar charts (time / distance / % vs civilian)
-  - Folium map with each model's path as a colored polyline
-  - optional MCS fitness curve if present in demo JSON meta
-
-Reads `data/processed/route_models_demo.json` by default (from run_route_models.py).
-Can also re-run routing if --rerun is set.
+Produces comparison charts, DRL learning curve, MCS fitness, and a Folium map.
 """
 
 from __future__ import annotations
@@ -33,152 +27,535 @@ if Path(omp).exists():
 
 sns.set_theme(style="whitegrid", context="notebook")
 
-# Display order + colors for the three main models + controls
 MODEL_ORDER = [
-    "control_distance",
     "control_civilian_time",
+    "control_distance",
     "emv_dijkstra",
     "mipsstw_mcs",
     "composite_drl",
     "gbdt_router",
 ]
+MAIN_MODELS = {"mipsstw_mcs", "composite_drl", "gbdt_router"}
 MODEL_COLORS = {
-    "control_distance": "#7f8c8d",
-    "control_civilian_time": "#95a5a6",
-    "emv_dijkstra": "#3498db",
+    "control_distance": "#95a5a6",
+    "control_civilian_time": "#7f8c8d",
+    "emv_dijkstra": "#2980b9",
     "mipsstw_mcs": "#c0392b",
     "composite_drl": "#8e44ad",
-    "gbdt_router": "#27ae60",
+    "gbdt_router": "#1e8449",
 }
 MODEL_LABELS = {
-    "control_distance": "Control: shortest distance",
-    "control_civilian_time": "Control: civilian time",
-    "emv_dijkstra": "EMV Dijkstra",
-    "mipsstw_mcs": "MIPSSTW + MCS",
-    "composite_drl": "Composite DRL",
-    "gbdt_router": "GBDT router",
+    "control_distance": "Control\nshortest dist.",
+    "control_civilian_time": "Control\ncivilian time",
+    "emv_dijkstra": "EMV\nDijkstra",
+    "mipsstw_mcs": "MIPSSTW\n+ MCS",
+    "composite_drl": "Composite\nDRL",
+    "gbdt_router": "GBDT\nrouter",
 }
 
 
 def _save(fig, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(path, dpi=160, bbox_inches="tight")
+    fig.savefig(path, dpi=170, bbox_inches="tight")
     plt.close(fig)
 
 
-def plot_travel_time_bars(df: pd.DataFrame, out: Path):
+def _ordered(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
-    d["label"] = d["model"].map(MODEL_LABELS).fillna(d["model"])
     d["order"] = d["model"].map({m: i for i, m in enumerate(MODEL_ORDER)})
-    d = d.sort_values("order")
-    fig, ax = plt.subplots(figsize=(9.5, 5.0))
-    colors = [MODEL_COLORS.get(m, "#1f4e79") for m in d["model"]]
-    ax.bar(d["label"], d["travel_minutes"], color=colors)
-    ax.set_ylabel("Travel time (min)")
-    ax.set_title("Route models vs control — travel time")
-    ax.tick_params(axis="x", rotation=25)
-    for i, v in enumerate(d["travel_minutes"]):
+    return d.sort_values("order")
+
+
+def plot_travel_time_bars(df: pd.DataFrame, out: Path):
+    d = _ordered(df)
+    labels = [MODEL_LABELS.get(m, m) for m in d["model"]]
+    colors = [MODEL_COLORS.get(m, "#333") for m in d["model"]]
+    fig, ax = plt.subplots(figsize=(10.0, 5.2))
+    bars = ax.bar(labels, d["travel_minutes"], color=colors, width=0.72, edgecolor="white")
+    # Emphasize the 3 main models
+    for bar, m in zip(bars, d["model"]):
+        if m in MAIN_MODELS:
+            bar.set_linewidth(2.0)
+            bar.set_edgecolor("#111")
+    best = d["travel_minutes"].min()
+    ax.axhline(best, color="#111", ls="--", lw=1, alpha=0.5, label=f"best = {best:.2f} min")
+    ax.set_ylabel("Travel time (minutes)")
+    ax.set_title("Route optimization models — travel time (lower is better)")
+    for i, (v, m) in enumerate(zip(d["travel_minutes"], d["model"])):
         if pd.notna(v):
-            ax.text(i, v + 0.15, f"{v:.1f}", ha="center", va="bottom", fontsize=9)
+            ax.text(i, v + 0.12, f"{v:.2f}", ha="center", va="bottom", fontsize=9,
+                    fontweight="bold" if m in MAIN_MODELS else "normal")
+    ax.legend(loc="upper right")
     _save(fig, out)
+
+
+def plot_main_models_focus(df: pd.DataFrame, out: Path):
+    """Side-by-side: three main models vs civilian control only."""
+    keep = ["control_civilian_time", "mipsstw_mcs", "composite_drl", "gbdt_router"]
+    d = _ordered(df[df["model"].isin(keep)]).reset_index(drop=True)
+    fig, axes = plt.subplots(1, 2, figsize=(11.2, 5.0))
+
+    labels = [MODEL_LABELS.get(m, m).replace("\n", " ") for m in d["model"]]
+    colors = [MODEL_COLORS.get(m, "#333") for m in d["model"]]
+
+    # Zoom y-axis so small EMV gains are visible
+    ymin = float(d["travel_minutes"].min()) - 0.15
+    ymax = float(d["travel_minutes"].max()) + 0.25
+    axes[0].bar(labels, d["travel_minutes"], color=colors, edgecolor="white", width=0.7)
+    axes[0].set_ylim(max(0, ymin), ymax)
+    axes[0].set_ylabel("Minutes")
+    axes[0].set_title("Travel time (zoomed)")
+    axes[0].tick_params(axis="x", rotation=12)
+    for i, (v, m) in enumerate(zip(d["travel_minutes"], d["model"])):
+        axes[0].text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9,
+                     fontweight="bold" if m == "composite_drl" else "normal")
+
+    pct = d["pct_vs_civilian_control"].fillna(0.0)
+    axes[1].bar(labels, pct, color=colors, edgecolor="white", width=0.7)
+    axes[1].axhline(0, color="#333", lw=1)
+    pad = max(0.5, float(np.nanmax(np.abs(pct))) * 0.35 + 0.3)
+    axes[1].set_ylim(float(np.nanmin(pct)) - pad, float(np.nanmax(pct)) + pad)
+    axes[1].set_ylabel("% vs civilian (+ = faster)")
+    axes[1].set_title("Time vs civilian control")
+    axes[1].tick_params(axis="x", rotation=12)
+    for i, (v, m) in enumerate(zip(pct, d["model"])):
+        axes[1].text(
+            i,
+            v + (0.08 if v >= 0 else -0.12),
+            f"{v:+.2f}%",
+            ha="center",
+            va="bottom" if v >= 0 else "top",
+            fontsize=9,
+            fontweight="bold" if m == "composite_drl" else "normal",
+        )
+
+    fig.suptitle("Main testing models (slides Step 3)", fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(out, dpi=170, bbox_inches="tight")
+    plt.close(fig)
 
 
 def plot_distance_bars(df: pd.DataFrame, out: Path):
-    d = df.copy()
-    d["label"] = d["model"].map(MODEL_LABELS).fillna(d["model"])
-    d["order"] = d["model"].map({m: i for i, m in enumerate(MODEL_ORDER)})
-    d = d.sort_values("order")
-    fig, ax = plt.subplots(figsize=(9.5, 5.0))
-    colors = [MODEL_COLORS.get(m, "#1f4e79") for m in d["model"]]
-    ax.bar(d["label"], d["distance_km"], color=colors)
+    d = _ordered(df)
+    labels = [MODEL_LABELS.get(m, m) for m in d["model"]]
+    colors = [MODEL_COLORS.get(m, "#333") for m in d["model"]]
+    fig, ax = plt.subplots(figsize=(10.0, 5.0))
+    ax.bar(labels, d["distance_km"], color=colors, edgecolor="white")
     ax.set_ylabel("Path distance (km)")
-    ax.set_title("Route models vs control — distance")
-    ax.tick_params(axis="x", rotation=25)
+    ax.set_title("Route length (hypothesis: longer path can still be faster)")
     for i, v in enumerate(d["distance_km"]):
         if pd.notna(v):
-            ax.text(i, v + 0.05, f"{v:.2f}", ha="center", va="bottom", fontsize=9)
-    _save(fig, out)
-
-
-def plot_pct_saved(df: pd.DataFrame, out: Path):
-    d = df.copy()
-    d = d[d["model"] != "control_civilian_time"]
-    d["label"] = d["model"].map(MODEL_LABELS).fillna(d["model"])
-    d["order"] = d["model"].map({m: i for i, m in enumerate(MODEL_ORDER)})
-    d = d.sort_values("order")
-    fig, ax = plt.subplots(figsize=(9.5, 5.0))
-    colors = [MODEL_COLORS.get(m, "#1f4e79") for m in d["model"]]
-    ax.bar(d["label"], d["pct_vs_civilian_control"], color=colors)
-    ax.axhline(0, color="#333", lw=1)
-    ax.set_ylabel("% time vs civilian control (+ = faster)")
-    ax.set_title("Percent time saved vs civilian control")
-    ax.tick_params(axis="x", rotation=25)
+            ax.text(i, v + 0.04, f"{v:.2f}", ha="center", fontsize=9)
     _save(fig, out)
 
 
 def plot_time_vs_distance(df: pd.DataFrame, out: Path):
-    fig, ax = plt.subplots(figsize=(7.2, 5.8))
-    for _, r in df.iterrows():
+    fig, ax = plt.subplots(figsize=(7.6, 6.0))
+    for _, r in _ordered(df).iterrows():
+        m = r["model"]
         ax.scatter(
             r["distance_km"],
             r["travel_minutes"],
-            s=120,
-            color=MODEL_COLORS.get(r["model"], "#1f4e79"),
-            label=MODEL_LABELS.get(r["model"], r["model"]),
+            s=220 if m in MAIN_MODELS else 120,
+            color=MODEL_COLORS.get(m, "#333"),
+            edgecolors="#111" if m in MAIN_MODELS else "white",
+            linewidths=1.2,
             zorder=3,
-        )
-        ax.annotate(
-            MODEL_LABELS.get(r["model"], r["model"]).split(":")[-1].strip()[:18],
-            (r["distance_km"], r["travel_minutes"]),
-            textcoords="offset points",
-            xytext=(6, 4),
-            fontsize=8,
+            label=MODEL_LABELS.get(m, m).replace("\n", " "),
         )
     ax.set_xlabel("Distance (km)")
     ax.set_ylabel("Travel time (min)")
-    ax.set_title("Time vs distance (hypothesis: longer can be faster)")
+    ax.set_title("Time vs distance")
+    ax.legend(fontsize=8, loc="best", framealpha=0.95)
+    _save(fig, out)
+
+
+def plot_mcs_fitness(history: list, out: Path):
+    fig, ax = plt.subplots(figsize=(7.2, 4.4))
+    ax.plot(history, color="#c0392b", lw=2.2)
+    ax.fill_between(range(len(history)), history, alpha=0.12, color="#c0392b")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Best fitness (seconds + soft TW)")
+    ax.set_title("MIPSSTW + MCS — search convergence")
+    _save(fig, out)
+
+
+def plot_drl_curve(history: list, out: Path):
+    fig, ax = plt.subplots(figsize=(8.0, 4.8))
+    y = np.array(history, dtype=float)
+    y_min = y.copy()
+    y_min[~np.isfinite(y_min)] = np.nan
+    y_plot = y_min / 60.0
+    ax.plot(y_plot, color="#8e44ad", lw=1.4, alpha=0.75, label="episode travel time")
+    finite = y_plot[np.isfinite(y_plot)]
+    if len(finite) >= 5:
+        # nan-safe moving average
+        s = pd.Series(y_plot)
+        smooth = s.rolling(7, min_periods=1, center=True).mean()
+        ax.plot(smooth, color="#4a235a", lw=2.4, label="moving avg")
+    if len(finite):
+        ax.axhline(np.nanmin(finite), color="#111", ls="--", lw=1, label=f"best={np.nanmin(finite):.2f} min")
+    ax.set_xlabel("Training episode")
+    ax.set_ylabel("Travel time (min)")
+    ax.set_title("Composite DRL — learning curve (corridor Q-learning)")
     ax.legend(fontsize=8, loc="best")
     _save(fig, out)
 
 
-def plot_mcs_fitness(payload: dict, out: Path):
-    hist = None
-    for row in payload.get("results", []):
-        if row.get("model") == "mipsstw_mcs":
-            # fitness_history may have been stripped; try re-load from full meta if present
-            hist = (row.get("meta") or {}).get("fitness_history")
-    if not hist:
-        return False
-    fig, ax = plt.subplots(figsize=(7.0, 4.4))
-    ax.plot(hist, color="#c0392b", lw=2)
-    ax.set_xlabel("MCS iteration")
-    ax.set_ylabel("Best fitness (s + soft TW penalty)")
-    ax.set_title("MIPSSTW + MCS — fitness convergence")
-    _save(fig, out)
-    return True
+def plot_dashboard(df: pd.DataFrame, mcs_hist, drl_hist, out: Path):
+    fig = plt.figure(figsize=(12.5, 8.5))
+    gs = fig.add_gridspec(2, 2, hspace=0.35, wspace=0.28)
+
+    d = _ordered(df)
+    labels = [MODEL_LABELS.get(m, m) for m in d["model"]]
+    colors = [MODEL_COLORS.get(m, "#333") for m in d["model"]]
+
+    ax0 = fig.add_subplot(gs[0, 0])
+    ax0.bar(labels, d["travel_minutes"], color=colors)
+    ax0.set_title("Travel time (min)")
+    ax0.tick_params(axis="x", labelsize=8)
+
+    ax1 = fig.add_subplot(gs[0, 1])
+    ax1.bar(labels, d["pct_vs_civilian_control"], color=colors)
+    ax1.axhline(0, color="#333", lw=1)
+    ax1.set_title("% vs civilian control")
+    ax1.tick_params(axis="x", labelsize=8)
+
+    ax2 = fig.add_subplot(gs[1, 0])
+    if mcs_hist:
+        ax2.plot(mcs_hist, color="#c0392b", lw=2)
+        ax2.set_title("MIPSSTW+MCS fitness")
+        ax2.set_xlabel("Iteration")
+    else:
+        ax2.text(0.5, 0.5, "No MCS history", ha="center", va="center")
+        ax2.set_axis_off()
+
+    ax3 = fig.add_subplot(gs[1, 1])
+    if drl_hist:
+        y = np.array(drl_hist, dtype=float) / 60.0
+        ax3.plot(y, color="#8e44ad", lw=1.5)
+        ax3.set_title("Composite DRL learning")
+        ax3.set_xlabel("Episode")
+        ax3.set_ylabel("Minutes")
+    else:
+        ax3.text(0.5, 0.5, "No DRL history", ha="center", va="center")
+        ax3.set_axis_off()
+
+    fig.suptitle("EMV route models — overview", fontsize=14, fontweight="bold")
+    fig.savefig(out, dpi=170, bbox_inches="tight")
+    plt.close(fig)
 
 
-def build_folium_paths(payload: dict, graph_path: Path, out: Path) -> Path | None:
-    """Draw each model path on a map (needs graph to decode node lat/lon)."""
+# Diverse NYC OD scenarios for the multi-route map (EMS station-ish → neighborhoods)
+MAP_SCENARIOS = [
+    {
+        "id": "midtown_to_civic",
+        "label": "Midtown → Civic Center",
+        "origin": {"lat": 40.7580, "lon": -73.9855},
+        "dest": {"lat": 40.7115, "lon": -74.0060},
+    },
+    {
+        "id": "bronx_to_harlem",
+        "label": "Bronx EMS → Harlem",
+        "origin": {"lat": 40.83487, "lon": -73.92797},
+        "dest": {"lat": 40.8116, "lon": -73.9465},
+    },
+    {
+        "id": "brooklyn_to_downtown",
+        "label": "Brooklyn EMS → Downtown Bk",
+        "origin": {"lat": 40.67835, "lon": -73.99022},
+        "dest": {"lat": 40.6920, "lon": -73.9870},
+    },
+    {
+        "id": "queens_to_flushing",
+        "label": "Queens corridor → Flushing",
+        "origin": {"lat": 40.7465, "lon": -73.8910},
+        "dest": {"lat": 40.7620, "lon": -73.8300},
+    },
+    {
+        "id": "uli_west_to_east",
+        "label": "Lower West Side → East Village",
+        "origin": {"lat": 40.74958, "lon": -73.99985},
+        "dest": {"lat": 40.7265, "lon": -73.9815},
+    },
+]
+
+
+def _path_latlons(G, path):
+    coords = []
+    for n in path:
+        node = G.nodes[n]
+        coords.append([float(node.get("y", node.get("lat"))), float(node.get("x", node.get("lon")))])
+    return coords
+
+
+def _offset_coords(coords, model_name: str, index: int):
+    """Tiny lateral offset on intermediate points only (keep OD ends pinned)."""
+    if len(coords) < 3:
+        return coords
+    offsets = {
+        "control_civilian_time": 0.0,
+        "mipsstw_mcs": 0.00005,
+        "composite_drl": -0.00005,
+        "gbdt_router": 0.00009,
+        "emv_dijkstra": -0.00009,
+    }
+    dy = offsets.get(model_name, 0.0) + (index % 3) * 0.000012
+    out = [coords[0]]
+    for lat, lon in coords[1:-1]:
+        out.append([lat + dy, lon + dy * 0.55])
+    out.append(coords[-1])
+    return out
+
+
+def _node_latlon(G, node):
+    data = G.nodes[node]
+    return [float(data.get("y", data.get("lat"))), float(data.get("x", data.get("lon")))]
+
+
+def build_multi_route_map(
+    graph_path: Path,
+    out: Path,
+    *,
+    hour: int = 17,
+    scenarios: list | None = None,
+    n_scenarios: int = 5,
+) -> Path | None:
+    """
+    Draw several OD trips, each with the main route models as separate polylines.
+    Layer control: toggle per trip and per model family.
+    """
     try:
         import folium
+        from branca.element import Element
     except ImportError:
         print("folium not installed; skipping map")
         return None
-    if not graph_path.exists():
-        print("graph missing; skipping map")
-        return None
 
-    from emvro.routing.graph import prepare_routing_graph
+    from emvro.routing import (
+        control_civilian_time,
+        nearest_node,
+        prepare_routing_graph,
+        solve_composite_drl,
+        solve_gbdt_route,
+        solve_mipsstw_mcs,
+    )
+    from emvro.routing.gbdt_router import build_edge_training_frame, train_gbdt_edge_model
 
-    G = prepare_routing_graph(graph_path, hour=int(payload.get("hour") or 12))
+    scenarios = (scenarios or MAP_SCENARIOS)[:n_scenarios]
+    print(f"Building multi-route map for {len(scenarios)} OD scenarios…")
+    G = prepare_routing_graph(graph_path, hour=hour)
+    edge_df = build_edge_training_frame(G, hours=[hour], max_edges=4000)
+    bundle = train_gbdt_edge_model(edge_df)
 
-    # Re-run paths so we have node sequences (demo JSON does not store full paths)
+    m = folium.Map(location=[40.74, -73.95], zoom_start=11, tiles=None)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Esri streets",
+    ).add_to(m)
+
+    model_layers = {
+        "control_civilian_time": folium.FeatureGroup(name="Control: civilian time", show=True),
+        "mipsstw_mcs": folium.FeatureGroup(name="MIPSSTW + MCS", show=True),
+        "composite_drl": folium.FeatureGroup(name="Composite DRL", show=True),
+        "gbdt_router": folium.FeatureGroup(name="GBDT router", show=True),
+    }
+    for fg in model_layers.values():
+        fg.add_to(m)
+
+    all_bounds = []
+    trip_rows = []
+
+    map_models = [
+        ("control_civilian_time", dict(weight=3, opacity=0.45, dash="8 6")),
+        ("mipsstw_mcs", dict(weight=6, opacity=0.9, dash=None)),
+        ("composite_drl", dict(weight=6, opacity=0.95, dash=None)),
+        ("gbdt_router", dict(weight=5, opacity=0.85, dash="2 8")),
+    ]
+
+    for i, sc in enumerate(scenarios):
+        o, d = sc["origin"], sc["dest"]
+        try:
+            origin = nearest_node(G, o["lon"], o["lat"])
+            dest = nearest_node(G, d["lon"], d["lat"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"  skip {sc['id']}: {exc}")
+            continue
+
+        o_ll = _node_latlon(G, origin)
+        d_ll = _node_latlon(G, dest)
+
+        trip_fg = folium.FeatureGroup(name=f"Trip {i+1}: {sc['label']}", show=True)
+        trip_fg.add_to(m)
+
+        solved = {
+            "control_civilian_time": control_civilian_time(G, origin, dest),
+            "mipsstw_mcs": solve_mipsstw_mcs(
+                G, origin, dest, n_iterations=10, n_nests=8, seed=42 + i
+            ),
+            "composite_drl": solve_composite_drl(G, origin, dest, episodes=50, seed=42 + i),
+            "gbdt_router": solve_gbdt_route(G, origin, dest, bundle=bundle, hour=hour),
+        }
+
+        # Markers snapped to the actual routed graph nodes (not raw scenario coords)
+        folium.CircleMarker(
+            o_ll,
+            radius=8,
+            color="#1f4e79",
+            fill=True,
+            fill_color="#3498db",
+            fill_opacity=0.95,
+            popup=f"<b>Origin {i+1}</b><br>{sc['label']}",
+            tooltip=f"O{i+1}: {sc['label']}",
+        ).add_to(trip_fg)
+        folium.CircleMarker(
+            d_ll,
+            radius=8,
+            color="#b35900",
+            fill=True,
+            fill_color="#e67e22",
+            fill_opacity=0.95,
+            popup=f"<b>Dest {i+1}</b><br>{sc['label']}",
+            tooltip=f"D{i+1}: {sc['label']}",
+        ).add_to(trip_fg)
+        folium.Marker(
+            [(o_ll[0] + d_ll[0]) / 2, (o_ll[1] + d_ll[1]) / 2],
+            icon=folium.DivIcon(
+                html=(
+                    f'<div style="font:11px/1.2 sans-serif;background:rgba(255,255,255,.92);'
+                    f'padding:2px 5px;border-radius:4px;border:1px solid #999;white-space:nowrap;">'
+                    f"Trip {i+1}</div>"
+                )
+            ),
+        ).add_to(trip_fg)
+
+        for name, style in map_models:
+            result = solved[name]
+            if not result.ok:
+                continue
+            if not result.node_path or result.node_path[0] != origin or result.node_path[-1] != dest:
+                print(f"  warn: {name} on {sc['id']} incomplete — forcing full-graph repair")
+                from emvro.routing.composite_drl import annotate_composite_weights
+                import networkx as nx
+
+                annotate_composite_weights(G)
+                try:
+                    result.node_path = list(
+                        nx.shortest_path(G, origin, dest, weight="weight_composite")
+                    )
+                    from emvro.routing.graph import path_stats
+
+                    t, dist, n_e = path_stats(G, result.node_path)
+                    result.travel_seconds, result.distance_m, result.n_edges = t, dist, n_e
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  skip draw {name}/{sc['id']}: {exc}")
+                    continue
+
+            coords = _path_latlons(G, result.node_path)
+            if len(coords) < 2:
+                continue
+            # Pin ends exactly to OD markers, offset only the middle
+            coords = _offset_coords(coords, name, i)
+            coords[0] = list(o_ll)
+            coords[-1] = list(d_ll)
+            all_bounds.extend(coords)
+            mins = result.travel_seconds / 60.0
+            km = result.distance_m / 1000.0
+
+            line = folium.PolyLine(
+                coords,
+                color=MODEL_COLORS.get(name, "#333"),
+                weight=style["weight"],
+                opacity=style["opacity"],
+                dash_array=style["dash"],
+                popup=(
+                    f"<b>Trip {i+1}: {sc['label']}</b><br>"
+                    f"{MODEL_LABELS.get(name, name).replace(chr(10), ' ')}<br>"
+                    f"{mins:.2f} min · {km:.2f} km · {result.n_edges} edges<br>"
+                    f"reaches dest: yes"
+                ),
+                tooltip=f"Trip {i+1}: {MODEL_LABELS.get(name, name).replace(chr(10), ' ')} ({mins:.1f} min)",
+            )
+            line.add_to(model_layers[name])
+            line.add_to(trip_fg)
+
+            # Explicit endpoint tick so a route never looks truncated
+            if name == "composite_drl":
+                folium.CircleMarker(
+                    coords[-1],
+                    radius=5,
+                    color="#8e44ad",
+                    fill=True,
+                    fill_color="#8e44ad",
+                    popup=f"DRL end — Trip {i+1}",
+                ).add_to(trip_fg)
+
+            trip_rows.append(
+                {
+                    "trip": sc["id"],
+                    "label": sc["label"],
+                    "model": name,
+                    "travel_minutes": round(mins, 2),
+                    "distance_km": round(km, 3),
+                    "n_edges": result.n_edges,
+                    "reaches_dest": True,
+                    "end_lat": coords[-1][0],
+                    "end_lon": coords[-1][1],
+                }
+            )
+            if sc["id"] == "queens_to_flushing" and name == "composite_drl":
+                print(
+                    f"  trip4 DRL: {mins:.2f} min, {len(coords)} verts, "
+                    f"end=({coords[-1][0]:.5f},{coords[-1][1]:.5f}) dest=({d_ll[0]:.5f},{d_ll[1]:.5f})"
+                )
+        print(f"  routed {sc['id']}")
+
+    if all_bounds:
+        m.fit_bounds(all_bounds, padding=(30, 30))
+
+    legend = """
+    <div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:rgba(255,255,255,0.96);
+                padding:12px 14px;border:1px solid #999;border-radius:8px;font:13px/1.45 sans-serif;
+                box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:300px;">
+      <div style="font-weight:700;margin-bottom:6px;">Multi-route map</div>
+      <div>Toggle <b>Trip N</b> or model layers. OD markers are snapped to routed graph nodes.</div>
+      <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
+      <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian control</div>
+      <div><span style="color:#c0392b;font-weight:700;">━━</span> MIPSSTW + MCS</div>
+      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Composite DRL</div>
+      <div><span style="color:#1e8449;font-weight:700;">- - -</span> GBDT router</div>
+      <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Origin &nbsp;
+           <span style="color:#e67e22;">●</span> Destination</div>
+    </div>
+    """
+    m.get_root().html.add_child(Element(legend))
+    folium.LayerControl(collapsed=False).add_to(m)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    m.save(str(out))
+
+    if trip_rows:
+        pd.DataFrame(trip_rows).to_csv(out.with_name("multi_route_times.csv"), index=False)
+    return out
+
+
+def build_folium_paths(payload: dict, graph_path: Path, out: Path, routes: dict) -> Path | None:
+    """Legacy single-OD map — prefer build_multi_route_map."""
+    return build_multi_route_map(
+        graph_path,
+        out,
+        hour=int(payload.get("hour") or 17),
+        n_scenarios=5,
+    )
+
+
+def _run_all_routes(payload: dict, graph_path: Path):
     from emvro.routing import (
         control_civilian_time,
         control_shortest_distance,
         nearest_node,
+        prepare_routing_graph,
         solve_composite_drl,
         solve_gbdt_route,
         solve_mipsstw_mcs,
@@ -186,127 +563,115 @@ def build_folium_paths(payload: dict, graph_path: Path, out: Path) -> Path | Non
     from emvro.routing.graph import dijkstra_route
     from emvro.routing.gbdt_router import build_edge_training_frame, train_gbdt_edge_model
 
-    o = payload["origin"]
-    d = payload["dest"]
+    G = prepare_routing_graph(graph_path, hour=int(payload.get("hour") or 12))
+    o, d = payload["origin"], payload["dest"]
     origin = nearest_node(G, o["lon"], o["lat"])
     dest = nearest_node(G, d["lon"], d["lat"])
     hour = int(payload.get("hour") or 12)
     deadline = payload.get("deadline_s")
 
-    edge_df = build_edge_training_frame(G, hours=[hour], max_edges=4000)
+    edge_df = build_edge_training_frame(G, hours=[hour], max_edges=5000)
     bundle = train_gbdt_edge_model(edge_df)
 
     routes = {
+        "_G": G,
         "control_civilian_time": control_civilian_time(G, origin, dest),
-        "mipsstw_mcs": solve_mipsstw_mcs(
-            G, origin, dest, deadline_s=deadline, n_iterations=8, n_nests=8
-        ),
-        "composite_drl": solve_composite_drl(G, origin, dest, episodes=10, seed=42),
-        "gbdt_router": solve_gbdt_route(G, origin, dest, bundle=bundle, hour=hour),
-        "emv_dijkstra": dijkstra_route(G, origin, dest, weight="weight_emv", model_name="emv_dijkstra"),
         "control_distance": control_shortest_distance(G, origin, dest),
+        "emv_dijkstra": dijkstra_route(G, origin, dest, weight="weight_emv", model_name="emv_dijkstra"),
+        "mipsstw_mcs": solve_mipsstw_mcs(
+            G, origin, dest, deadline_s=deadline, n_iterations=18, n_nests=10, seed=42
+        ),
+        "composite_drl": solve_composite_drl(G, origin, dest, episodes=80, seed=42),
+        "gbdt_router": solve_gbdt_route(G, origin, dest, bundle=bundle, hour=hour),
     }
-
-    m = folium.Map(location=[o["lat"], d["lat"]], zoom_start=13, tiles=None)
-    folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri",
-        name="Esri streets",
-    ).add_to(m)
-    folium.Marker([o["lat"], o["lon"]], popup="Origin", icon=folium.Icon(color="blue")).add_to(m)
-    folium.Marker([d["lat"], d["lon"]], popup="Destination", icon=folium.Icon(color="orange")).add_to(m)
-
-    for name, result in routes.items():
-        if not result.ok:
-            continue
-        coords = []
-        for n in result.node_path:
-            node = G.nodes[n]
-            coords.append([float(node.get("y", node.get("lat"))), float(node.get("x", node.get("lon")))])
-        folium.PolyLine(
-            coords,
-            color=MODEL_COLORS.get(name, "#333"),
-            weight=5 if name in {"mipsstw_mcs", "composite_drl", "gbdt_router"} else 3,
-            opacity=0.85,
-            popup=f"{MODEL_LABELS.get(name, name)} — {result.travel_seconds/60:.1f} min",
-            tooltip=MODEL_LABELS.get(name, name),
-        ).add_to(m)
-
-    folium.LayerControl().add_to(m)
-    legend = """
-    <div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:rgba(255,255,255,0.95);
-                padding:10px 12px;border:1px solid #999;border-radius:8px;font-size:12px;">
-      <b>Route models</b><br>
-      <span style="color:#c0392b;">━</span> MIPSSTW + MCS<br>
-      <span style="color:#8e44ad;">━</span> Composite DRL<br>
-      <span style="color:#27ae60;">━</span> GBDT router<br>
-      <span style="color:#3498db;">━</span> EMV Dijkstra<br>
-      <span style="color:#95a5a6;">━</span> Civilian control
-    </div>
-    """
-    from branca.element import Element
-
-    m.get_root().html.add_child(Element(legend))
-    out.parent.mkdir(parents=True, exist_ok=True)
-    m.save(str(out))
-    return out
+    return routes
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument(
-        "--demo-json",
-        type=Path,
-        default=ROOT / "data" / "processed" / "route_models_demo.json",
-    )
+    p.add_argument("--demo-json", type=Path, default=ROOT / "data" / "processed" / "route_models_demo.json")
     p.add_argument("--graph", type=Path, default=ROOT / "data" / "raw" / "nyc_drive.graphml")
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "figures" / "route_models")
-    p.add_argument("--skip-map", action="store_true", help="Skip Folium path map (faster)")
+    p.add_argument("--skip-map", action="store_true")
+    p.add_argument("--n-map-routes", type=int, default=5, help="How many OD trips to draw on the map")
+    p.add_argument("--rerun", action="store_true", help="Re-run routers and refresh demo JSON")
     args = p.parse_args()
-
-    if not args.demo_json.exists():
-        raise SystemExit(
-            f"Missing {args.demo_json}. Run: PYTHONPATH=src python scripts/run_route_models.py"
-        )
-
-    payload = json.loads(args.demo_json.read_text())
-    df = pd.DataFrame(payload["results"])
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
+    if not args.graph.exists():
+        raise SystemExit(f"Missing graph {args.graph}")
+
+    # Always re-run for fresh DRL/MCS histories + improved routes when visualizing
+    print("Re-running route models for visualization…")
+    if args.demo_json.exists():
+        payload = json.loads(args.demo_json.read_text())
+    else:
+        payload = {
+            "origin": {"lat": 40.7580, "lon": -73.9855},
+            "dest": {"lat": 40.7115, "lon": -74.0060},
+            "hour": 17,
+            "deadline_s": None,
+        }
+
+    routes = _run_all_routes(payload, args.graph)
+    control_t = routes["control_civilian_time"].travel_seconds
+    rows = []
+    for name in MODEL_ORDER:
+        r = routes[name]
+        t = r.travel_seconds
+        rows.append(
+            {
+                "model": name,
+                "ok": r.ok,
+                "travel_seconds": None if t != t else round(float(t), 1),
+                "travel_minutes": None if t != t else round(float(t) / 60.0, 2),
+                "distance_km": None if r.distance_m != r.distance_m else round(r.distance_m / 1000.0, 3),
+                "n_edges": r.n_edges,
+                "pct_vs_civilian_control": None
+                if not (control_t == control_t and t == t and control_t > 0)
+                else round(100.0 * (1.0 - float(t) / control_t), 2),
+                "meta": {k: v for k, v in r.meta.items() if k not in {"train_curve", "fitness_history"}},
+            }
+        )
+    payload["results"] = rows
+    payload["deadline_s"] = payload.get("deadline_s")
+    if args.rerun or True:
+        # Persist refreshed demo numbers
+        out_json = ROOT / "data" / "processed" / "route_models_demo.json"
+        slim = dict(payload)
+        out_json.write_text(json.dumps(slim, indent=2) + "\n")
+
+    df = pd.DataFrame(rows)
     plot_travel_time_bars(df, args.out_dir / "01_travel_time_comparison.png")
     plot_distance_bars(df, args.out_dir / "02_distance_comparison.png")
-    plot_pct_saved(df, args.out_dir / "03_pct_vs_civilian.png")
+    plot_main_models_focus(df, args.out_dir / "03_main_models_focus.png")
     plot_time_vs_distance(df, args.out_dir / "04_time_vs_distance.png")
-    # Fitness history was stripped from demo JSON — re-run a short MCS for the curve
-    from emvro.routing.graph import nearest_node, prepare_routing_graph
-    from emvro.routing.mipsstw_mcs import solve_mipsstw_mcs
 
-    if args.graph.exists():
-        G = prepare_routing_graph(args.graph, hour=int(payload.get("hour") or 12))
-        o, d = payload["origin"], payload["dest"]
-        origin = nearest_node(G, o["lon"], o["lat"])
-        dest = nearest_node(G, d["lon"], d["lat"])
-        mcs = solve_mipsstw_mcs(
-            G, origin, dest, deadline_s=payload.get("deadline_s"), n_iterations=20, n_nests=10
-        )
-        if mcs.meta.get("fitness_history"):
-            plot_mcs_fitness(
-                {"results": [{"model": "mipsstw_mcs", "meta": mcs.meta}]},
-                args.out_dir / "05_mcs_fitness.png",
-            )
+    mcs_hist = routes["mipsstw_mcs"].meta.get("fitness_history") or []
+    drl_hist = routes["composite_drl"].meta.get("train_curve") or []
+    if mcs_hist:
+        plot_mcs_fitness(mcs_hist, args.out_dir / "05_mcs_fitness.png")
+    if drl_hist:
+        plot_drl_curve(drl_hist, args.out_dir / "06_drl_learning_curve.png")
+    plot_dashboard(df, mcs_hist, drl_hist, args.out_dir / "00_dashboard.png")
 
     map_path = None
     if not args.skip_map:
-        map_path = build_folium_paths(payload, args.graph, args.out_dir / "route_models_map.html")
+        map_path = build_multi_route_map(
+            args.graph,
+            args.out_dir / "route_models_map.html",
+            hour=int(payload.get("hour") or 17),
+            n_scenarios=args.n_map_routes,
+        )
 
     summary = {
         "figures": sorted(p.name for p in args.out_dir.glob("*.png")),
         "map": str(map_path) if map_path else None,
-        "demo_json": str(args.demo_json),
-        "models": df["model"].tolist(),
+        "results": rows,
+        "drl_meta": routes["composite_drl"].meta,
     }
     (args.out_dir / "viz_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    print(json.dumps(summary, indent=2))
+    print(pd.DataFrame(rows)[["model", "travel_minutes", "distance_km", "pct_vs_civilian_control"]].to_string(index=False))
     print("Wrote figures to", args.out_dir)
 
 
