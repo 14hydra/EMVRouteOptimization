@@ -192,7 +192,32 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
 
     df = od.dropna(subset=["start_lat", "start_lon", "dest_lat", "dest_lon"])
     sample = df.sample(n=min(400, len(df)), random_state=42)
-    m = folium.Map(location=[40.75, -73.97], zoom_start=11, tiles="OpenStreetMap")
+    # Avoid tiles.openstreetmap.org — returns 403 for Folium apps that violate their
+    # tile usage policy. Esri + Carto CDN are usable without a project API key.
+    m = folium.Map(location=[40.75, -73.97], zoom_start=11, tiles=None)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri &copy; OpenStreetMap contributors",
+        name="Esri streets",
+        control=True,
+        show=True,
+    ).add_to(m)
+    folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        attr='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        name="Carto light",
+        control=True,
+        show=False,
+        subdomains="abcd",
+    ).add_to(m)
+    folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        attr='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        name="Carto streets",
+        control=True,
+        show=False,
+        subdomains="abcd",
+    ).add_to(m)
 
     key = os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("GMAPS_API_KEY")
     if key:

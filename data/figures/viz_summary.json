@@ -8,7 +8,7 @@
     "06_gmaps_control.png"
   ],
   "map": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/emv_nyc_map.html",
-  "od_rows": 3000,
+  "od_rows": 24142,
   "gmaps_control_rows": 0,
   "google_maps_key_present": false
 }

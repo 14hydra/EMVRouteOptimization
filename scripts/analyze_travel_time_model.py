@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from emvro.travel_time import prepare_matrix  # noqa: E402
+from emvro.route_eta import prepare_route_eta_matrix  # noqa: E402
 
 sns.set_theme(style="whitegrid", context="notebook")
 
@@ -49,7 +50,7 @@ def _save(fig, path: Path):
     plt.close(fig)
 
 
-def plot_pred_vs_actual(eval_df: pd.DataFrame, out: Path):
+def plot_pred_vs_actual(eval_df: pd.DataFrame, out: Path, title: str | None = None):
     fig, ax = plt.subplots(figsize=(7.2, 6.4))
     ax.scatter(
         eval_df["y_true"] / 60,
@@ -63,7 +64,7 @@ def plot_pred_vs_actual(eval_df: pd.DataFrame, out: Path):
     ax.plot([0, lim], [0, lim], color="#c0392b", lw=1.5, label="perfect")
     ax.set_xlabel("Actual travel time (min)")
     ax.set_ylabel("Predicted travel time (min)")
-    ax.set_title("Holdout: predicted vs actual")
+    ax.set_title(title or "Holdout: predicted vs actual")
     ax.legend(loc="upper left")
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
@@ -205,32 +206,55 @@ def main():
     p.add_argument(
         "--data",
         type=Path,
-        default=ROOT / "data" / "processed" / "travel_time_training.csv",
+        default=None,
     )
     p.add_argument(
         "--model",
         type=Path,
-        default=ROOT / "data" / "processed" / "models" / "travel_time_lightgbm.joblib",
+        default=None,
     )
-    p.add_argument("--feature-set", choices=("full", "route"), default="full")
+    p.add_argument(
+        "--feature-set",
+        choices=("full", "route", "route_eta"),
+        default="route_eta",
+        help="route_eta = known-OD optimizer model (default); full/route = CAD context models",
+    )
     p.add_argument(
         "--importance",
         type=Path,
         default=None,
     )
-    p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "figures" / "model_eval")
+    p.add_argument("--out-dir", type=Path, default=None)
     p.add_argument("--test-size", type=float, default=0.2)
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
     models_dir = ROOT / "data" / "processed" / "models"
-    if args.importance is None:
-        tagged = models_dir / f"travel_time_feature_importance_{args.feature_set}.csv"
-        args.importance = tagged if tagged.exists() else models_dir / "travel_time_feature_importance.csv"
-    tagged_model = models_dir / f"travel_time_lightgbm_{args.feature_set}.joblib"
-    if args.model.name == "travel_time_lightgbm.joblib" and tagged_model.exists():
-        args.model = tagged_model
-    if args.out_dir == ROOT / "data" / "figures" / "model_eval":
-        args.out_dir = ROOT / "data" / "figures" / f"model_eval_{args.feature_set}"
+    figures_root = ROOT / "data" / "figures"
+
+    if args.feature_set == "route_eta":
+        args.data = args.data or (ROOT / "data" / "processed" / "route_eta_training.csv")
+        args.model = args.model or (models_dir / "travel_time_route_eta_lightgbm.joblib")
+        args.importance = args.importance or (
+            models_dir / "travel_time_route_eta_feature_importance.csv"
+        )
+        args.out_dir = args.out_dir or (figures_root / "model_eval_route_eta")
+        prepare = prepare_route_eta_matrix
+        origin_col = "origin_layer"
+        origin_title = "MAE by origin layer"
+    else:
+        args.data = args.data or (ROOT / "data" / "processed" / "travel_time_training.csv")
+        tagged_model = models_dir / f"travel_time_lightgbm_{args.feature_set}.joblib"
+        args.model = args.model or (
+            tagged_model if tagged_model.exists() else models_dir / "travel_time_lightgbm.joblib"
+        )
+        tagged_imp = models_dir / f"travel_time_feature_importance_{args.feature_set}.csv"
+        args.importance = args.importance or (
+            tagged_imp if tagged_imp.exists() else models_dir / "travel_time_feature_importance.csv"
+        )
+        args.out_dir = args.out_dir or (figures_root / f"model_eval_{args.feature_set}")
+        prepare = lambda df: prepare_matrix(df, feature_set=args.feature_set)
+        origin_col = "primary_origin_layer"
+        origin_title = "MAE by primary inferred origin"
 
     # Ensure OpenMP is findable on macOS Homebrew installs
     omp = "/opt/homebrew/opt/libomp/lib"
@@ -241,7 +265,7 @@ def main():
     bundle = joblib.load(args.model)
     model = bundle["model"]
 
-    X, y, _ = prepare_matrix(df, feature_set=args.feature_set)
+    X, y, _ = prepare(df)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=args.test_size, random_state=args.seed
     )
@@ -260,6 +284,7 @@ def main():
 
     baseline_pred = np.full_like(y_test, float(y_train.median()), dtype=float)
     metrics = {
+        "feature_set": args.feature_set,
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
         "mae_seconds": float(mean_absolute_error(y_test, pred)),
@@ -281,17 +306,24 @@ def main():
     }
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    plot_pred_vs_actual(eval_df, args.out_dir / "01_pred_vs_actual.png")
+    r2 = metrics["r2"]
+    plot_pred_vs_actual(
+        eval_df,
+        args.out_dir / "01_pred_vs_actual.png",
+        title=f"Holdout: predicted vs actual  (R²={r2:.3f})",
+    )
     plot_residuals(eval_df, args.out_dir / "02_residuals.png")
     by_boro = plot_error_by_group(
         eval_df, "borough", args.out_dir / "03_mae_by_borough.png", "MAE by borough"
     )
-    by_layer = plot_error_by_group(
-        eval_df,
-        "primary_origin_layer",
-        args.out_dir / "04_mae_by_origin_layer.png",
-        "MAE by primary inferred origin",
-    )
+    by_layer = None
+    if origin_col in eval_df.columns:
+        by_layer = plot_error_by_group(
+            eval_df,
+            origin_col,
+            args.out_dir / "04_mae_by_origin_layer.png",
+            origin_title,
+        )
     by_hour = plot_error_by_group(
         eval_df,
         "hour_bin",
@@ -303,7 +335,7 @@ def main():
     plot_abs_error_cdf(eval_df, args.out_dir / "07_abs_error_cdf.png")
     plot_calibration(eval_df, args.out_dir / "08_calibration.png")
 
-    if args.importance.exists():
+    if args.importance and Path(args.importance).exists():
         imp = pd.read_csv(args.importance)
         plot_feature_importance(imp, args.out_dir / "09_feature_importance.png")
 
@@ -313,7 +345,10 @@ def main():
         for c in [
             "borough",
             "primary_origin_layer",
+            "origin_layer",
             "crow_flies_km",
+            "civilian_network_s",
+            "osm_path_km",
             "station_km",
             "hospital_km",
             "csl_km",
@@ -334,10 +369,6 @@ def main():
         "mae_by_borough_min": {
             str(r["borough"]): round(float(r["mae_min"]), 2) for _, r in by_boro.iterrows()
         },
-        "mae_by_origin_layer_min": {
-            str(r["primary_origin_layer"]): round(float(r["mae_min"]), 2)
-            for _, r in by_layer.iterrows()
-        },
         "mae_by_hour_min": {
             str(r["hour_bin"]): round(float(r["mae_min"]), 2) for _, r in by_hour.iterrows()
         },
@@ -345,7 +376,12 @@ def main():
             str(r["dist_bin"]): round(float(r["mae_min"]), 2) for _, r in by_dist.iterrows()
         },
         "figures": sorted(str(p.name) for p in args.out_dir.glob("*.png")),
+        "out_dir": str(args.out_dir),
     }
+    if by_layer is not None:
+        summary["mae_by_origin_layer_min"] = {
+            str(r[origin_col]): round(float(r["mae_min"]), 2) for _, r in by_layer.iterrows()
+        }
     (args.out_dir / "analysis_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
     print("Wrote figures to", args.out_dir)

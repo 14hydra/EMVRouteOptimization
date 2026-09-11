@@ -1,0 +1,19 @@
+{
+  "figures": [
+    "01_travel_time_comparison.png",
+    "02_distance_comparison.png",
+    "03_pct_vs_civilian.png",
+    "04_time_vs_distance.png",
+    "05_mcs_fitness.png"
+  ],
+  "map": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/route_models/route_models_map.html",
+  "demo_json": "/Users/sarpakalin/git/EMVRouteOptimization/data/processed/route_models_demo.json",
+  "models": [
+    "control_distance",
+    "control_civilian_time",
+    "emv_dijkstra",
+    "mipsstw_mcs",
+    "composite_drl",
+    "gbdt_router"
+  ]
+}

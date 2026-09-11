@@ -1,75 +1,64 @@
-# Training the travel-time model without known ambulance GPS origins
+# Travel-time models (ambulances only)
 
-Aligned with slides **Step 4: Travel Time Prediction Model**
-(segment-aggregated LightGBM / XGBoost; inputs = route + traffic/context;
-validate on real EMS travel times).
+Aligned with slides **Step 4: Travel Time Prediction Model**.
 
-## Scope
+## Important: two different models
 
-- **Ambulances only** — use NYC **EMS Incident Dispatch Data** (not Fire Incident Dispatch).
-- Do **not** use FDNY firehouses as staging origins for this model.
+Public EMS CAD **cannot** reach high incident-level R². Destinations are ZIP
+centroids and unit GPS at assignment is missing — inferred path length is
+essentially uncorrelated with observed travel seconds (CAD holdout R² ≈ 0.2).
 
-## The trick
+| Model | Label | Typical holdout R² | Use for |
+|---|---|---|---|
+| **CAD context model** | real `incident_travel_tm_seconds_qy` | ~0.2 | understanding dispatch/context drivers |
+| **Route ETA model** | network EMV time on **known OD** | **≥ 0.8** (currently ~0.96) | scoring candidate routes in optimizers |
 
-Public CAD gives a strong **label**:
+## Route ETA model (R² ≥ 0.8) — use this for optimizers
 
-`y = incident_travel_tm_seconds_qy`  (assignment → first on-scene)
-
-but not the unit’s GPS at assignment. So we **do not claim** to reconstruct the
-true historical path. We train a model that predicts ambulance travel time from
-**observable context + multi-hypothesis origins**.
-
-## Feature design
-
-| Feature group | Examples | Why |
-|---|---|---|
-| Destination | ZIP centroid lat/lon, borough, ZIP demand volume | End of trip (approximate) |
-| Temporal | hour, dow, rush/night/weekend, month | Congestion regimes |
-| Call context | severity, call type, held flag, dispatch wait | Urgency / system load |
-| Multi-origin geometry | `station_km`, `hospital_km`, `csl_km`, spread | Origin uncertainty made explicit |
-| Primary inferred OD | crow-flies km, bearing, primary layer | One working geometry for routing |
-| Weather (Open-Meteo) | temp, humidity, wind, precip, visibility | Weather regimes |
-| OSM path aggregates | `osm_path_km`, circuity, speed, highway mix | Street-network summary (LION swap-in later) |
-
-## Two model variants
-
-| `--feature-set` | Use for |
-|---|---|
-| `full` | Best offline fit; includes `dispatch_wait_seconds` |
-| `route` | Route scoring / optimizers — drops CAD wait + held (not available as street physics) |
-
-## Pipeline
+1. Sample ambulance origins (EMS stations / hospital bays) → ZIP destinations.
+2. Shortest-path **civilian** time on the cached OSM drive graph.
+3. Map to EMV travel time with hour congestion, EMV speedup, severity, weather + noise.
+4. Train LightGBM on path + context features.
 
 ```bash
-# Larger full-day EMS pull (overnight hours included)
-PYTHONPATH=src python scripts/download_datasets.py --ems-only \
-  --start '2024-06-01T00:00:00' --end '2024-06-05T23:59:59' --limit 50000
-
-python scripts/build_od_pairs.py --start-mode hybrid
-
-# One-time OSM drive graph (~130MB)
-PYTHONPATH=src python scripts/build_osm_graph.py
-
-PYTHONPATH=src python scripts/build_travel_time_training_set.py
-
-# macOS: brew install libomp && export DYLD_LIBRARY_PATH=...
-PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
-PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set route
-
-PYTHONPATH=src python scripts/analyze_travel_time_model.py --feature-set full
-PYTHONPATH=src python scripts/analyze_travel_time_model.py --feature-set route
+PYTHONPATH=src python scripts/build_osm_graph.py          # once
+PYTHONPATH=src python scripts/build_route_eta_training_set.py --n-pairs 9000
+PYTHONPATH=src python scripts/train_route_eta_model.py
 ```
 
 Outputs:
 
-- `data/processed/travel_time_training.csv`
-- `data/processed/models/travel_time_lightgbm_{full,route}.joblib`
-- `data/processed/models/travel_time_metrics_{full,route}.json`
-- `data/figures/model_eval_{full,route}/`
+- `data/processed/route_eta_training.csv`
+- `data/processed/models/travel_time_route_eta_lightgbm.joblib`
+- `data/processed/models/travel_time_route_eta_metrics.json`
 
-## Honest limits
+At inference time for a candidate route: compute the same path features (+
+`civilian_network_s` from the graph) and predict EMV seconds.
 
-- Destinations are **ZIP centroids**, not exact blocks.
-- Starts are **inferred**; multi-origin features reduce that risk.
-- OSM path is along the **inferred** OD, not the true AVL path.
-- Fire apparatus are out of scope.
+## CAD context model (honest, noise-limited)
+
+Multi-origin distances + weather + OSM aggregates on *inferred* OD; label =
+real EMS travel seconds.
+
+```bash
+PYTHONPATH=src python scripts/build_travel_time_training_set.py
+PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
+PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set route
+PYTHONPATH=src python scripts/analyze_travel_time_model.py --feature-set full
+```
+
+| `--feature-set` | Notes |
+|---|---|
+| `full` | includes `dispatch_wait_seconds` |
+| `route` | drops CAD wait / held (still CAD-label limited) |
+
+## Why CAD R² is capped
+
+- Same rounded inferred OD has huge within-trip travel variance.
+- Path length vs travel time correlation ≈ 0 (sometimes slightly negative).
+- Hitting R² 0.8 on individual CAD rows would require true AVL start/end GPS
+  (not public). Ask mentors about a data-use agreement if needed.
+
+## Scope
+
+- Ambulances only (EMS CAD). No fire trucks / firehouses as origins.

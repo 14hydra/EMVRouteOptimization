@@ -8,6 +8,7 @@ from .gmaps import GoogleMapsControl, classify_origin_with_gmaps
 from .travel_time import build_travel_time_feature_table, prepare_matrix, feature_list
 from .weather import join_weather_features, WEATHER_FEATURE_COLUMNS
 from .street_features import attach_street_features, STREET_FEATURE_COLUMNS
+from .route_eta import prepare_route_eta_matrix
 
 __all__ = [
     "DATASETS",
@@ -29,4 +30,5 @@ __all__ = [
     "WEATHER_FEATURE_COLUMNS",
     "attach_street_features",
     "STREET_FEATURE_COLUMNS",
+    "prepare_route_eta_matrix",
 ]

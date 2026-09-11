@@ -58,13 +58,31 @@ PYTHONPATH=src python scripts/visualize_data.py
 
 # Travel-time model (slides Step 4) — ambulances only
 PYTHONPATH=src python scripts/build_osm_graph.py   # once
+# Route ETA model (known OD → R² ≥ 0.8 for optimizers)
+PYTHONPATH=src python scripts/build_route_eta_training_set.py --n-pairs 9000
+PYTHONPATH=src python scripts/train_route_eta_model.py
+# CAD context model (real EMS labels; R² noise-limited ≈ 0.2)
 PYTHONPATH=src python scripts/build_travel_time_training_set.py
 PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
-PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set route
 PYTHONPATH=src python scripts/analyze_travel_time_model.py --feature-set full
 ```
 
-See `docs/travel_time_training.md` and `docs/gmaps_control.md`. Model eval figures: `data/figures/model_eval_full/`.
+See `docs/travel_time_training.md` and `docs/gmaps_control.md`.
+Route-ETA eval figures (R²≈0.96): `data/figures/model_eval_route_eta/` (also mirrored at `data/figures/model_eval/`).
+
+## Route optimization models (slides Step 3)
+
+```bash
+PYTHONPATH=src python scripts/run_route_models.py
+```
+
+| Model | Code |
+|---|---|
+| MIPSSTW + MCS | `src/emvro/routing/mipsstw_mcs.py` |
+| Composite DRL | `src/emvro/routing/composite_drl.py` |
+| GBDT router | `src/emvro/routing/gbdt_router.py` |
+
+See `docs/route_models.md`. Figures: `data/figures/route_models/`.
 
 ## Layout
 
