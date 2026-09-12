@@ -93,6 +93,7 @@ PYTHONPATH=src python scripts/run_condition_scenarios.py --with-open-meteo
 ```
 
 Figures: `data/figures/route_models/conditions/` (civilian vs EMV ROW payoff by regime).
+Conditions map with Google-untakeable corridors: `data/figures/route_models/route_conditions_map.html`.
 
 ## Layout
 

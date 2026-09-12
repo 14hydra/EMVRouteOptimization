@@ -41,6 +41,8 @@ Figures land in `data/figures/route_models/`:
 - `05_mcs_fitness.png`
 - `06_drl_learning_curve.png`
 - `route_models_map.html` — **multiple OD trips** across NYC; toggle models in the layer control
+- `route_conditions_map.html` — **time slider + weather buttons** swap the full route set
+  (civilian vs EMV) for that hour/weather; gold = Google-untakeable EMV corridors
 - `multi_route_times.csv` — per-trip travel times for the map scenarios
 
 ## Traffic & weather conditions (ASI eval variables)

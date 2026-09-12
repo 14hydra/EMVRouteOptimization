@@ -1,0 +1,145 @@
+trip,label,hour,weather,condition_label,model,travel_minutes,n_edges,emv_only_edges,congestion,weather_factor_civilian
+midtown_to_civic,Midtown → Civic Center,0,clear,Clear · 00:00,civilian_gps,8.04,80,0,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,0,clear,Clear · 00:00,emv_row,7.66,75,61,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,0,clear,Clear · 00:00,civilian_gps,5.92,30,0,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,0,clear,Clear · 00:00,emv_row,5.77,32,3,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,2,clear,Clear · 02:00,civilian_gps,8.04,80,0,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,2,clear,Clear · 02:00,emv_row,7.66,75,61,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,2,clear,Clear · 02:00,civilian_gps,5.92,30,0,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,2,clear,Clear · 02:00,emv_row,5.77,32,3,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,4,clear,Clear · 04:00,civilian_gps,8.04,80,0,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,4,clear,Clear · 04:00,emv_row,7.66,75,61,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,4,clear,Clear · 04:00,civilian_gps,5.92,30,0,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,4,clear,Clear · 04:00,emv_row,5.77,32,3,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,6,clear,Clear · 06:00,civilian_gps,9.69,80,0,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,6,clear,Clear · 06:00,emv_row,9.16,75,61,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,6,clear,Clear · 06:00,civilian_gps,7.26,30,0,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,6,clear,Clear · 06:00,emv_row,6.93,32,3,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,8,clear,Clear · 08:00,civilian_gps,10.62,80,0,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,8,clear,Clear · 08:00,emv_row,9.98,75,61,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,8,clear,Clear · 08:00,civilian_gps,8.07,30,0,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,8,clear,Clear · 08:00,emv_row,7.58,32,3,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,10,clear,Clear · 10:00,civilian_gps,9.69,80,0,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,10,clear,Clear · 10:00,emv_row,9.16,75,61,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,10,clear,Clear · 10:00,civilian_gps,7.26,30,0,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,10,clear,Clear · 10:00,emv_row,6.93,32,3,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,12,clear,Clear · 12:00,civilian_gps,8.9,80,0,1.2,1.0
+midtown_to_civic,Midtown → Civic Center,12,clear,Clear · 12:00,emv_row,8.45,75,61,1.2,1.0
+uli_west_to_east,Lower West Side → East Village,12,clear,Clear · 12:00,civilian_gps,6.61,30,0,1.2,1.0
+uli_west_to_east,Lower West Side → East Village,12,clear,Clear · 12:00,emv_row,6.37,32,3,1.2,1.0
+midtown_to_civic,Midtown → Civic Center,14,clear,Clear · 14:00,civilian_gps,8.9,80,0,1.2,1.0
+midtown_to_civic,Midtown → Civic Center,14,clear,Clear · 14:00,emv_row,8.45,75,61,1.2,1.0
+uli_west_to_east,Lower West Side → East Village,14,clear,Clear · 14:00,civilian_gps,6.61,30,0,1.2,1.0
+uli_west_to_east,Lower West Side → East Village,14,clear,Clear · 14:00,emv_row,6.37,32,3,1.2,1.0
+midtown_to_civic,Midtown → Civic Center,16,clear,Clear · 16:00,civilian_gps,10.62,80,0,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,16,clear,Clear · 16:00,emv_row,9.98,75,61,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,16,clear,Clear · 16:00,civilian_gps,8.07,30,0,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,16,clear,Clear · 16:00,emv_row,7.58,32,3,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,18,clear,Clear · 18:00,civilian_gps,10.62,80,0,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,18,clear,Clear · 18:00,emv_row,9.98,75,61,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,18,clear,Clear · 18:00,civilian_gps,8.07,30,0,1.55,1.0
+uli_west_to_east,Lower West Side → East Village,18,clear,Clear · 18:00,emv_row,7.58,32,3,1.55,1.0
+midtown_to_civic,Midtown → Civic Center,20,clear,Clear · 20:00,civilian_gps,9.69,80,0,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,20,clear,Clear · 20:00,emv_row,9.16,75,61,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,20,clear,Clear · 20:00,civilian_gps,7.26,30,0,1.35,1.0
+uli_west_to_east,Lower West Side → East Village,20,clear,Clear · 20:00,emv_row,6.93,32,3,1.35,1.0
+midtown_to_civic,Midtown → Civic Center,22,clear,Clear · 22:00,civilian_gps,8.04,80,0,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,22,clear,Clear · 22:00,emv_row,7.66,75,61,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,22,clear,Clear · 22:00,civilian_gps,5.92,30,0,1.05,1.0
+uli_west_to_east,Lower West Side → East Village,22,clear,Clear · 22:00,emv_row,5.77,32,3,1.05,1.0
+midtown_to_civic,Midtown → Civic Center,0,rain,Rain · 00:00,civilian_gps,9.54,80,0,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,0,rain,Rain · 00:00,emv_row,8.82,75,61,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,0,rain,Rain · 00:00,civilian_gps,7.06,30,0,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,0,rain,Rain · 00:00,emv_row,6.84,32,3,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,2,rain,Rain · 02:00,civilian_gps,9.54,80,0,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,2,rain,Rain · 02:00,emv_row,8.82,75,61,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,2,rain,Rain · 02:00,civilian_gps,7.06,30,0,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,2,rain,Rain · 02:00,emv_row,6.84,32,3,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,4,rain,Rain · 04:00,civilian_gps,9.54,80,0,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,4,rain,Rain · 04:00,emv_row,8.82,75,61,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,4,rain,Rain · 04:00,civilian_gps,7.06,30,0,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,4,rain,Rain · 04:00,emv_row,6.84,32,3,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,6,rain,Rain · 06:00,civilian_gps,11.3,80,0,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,6,rain,Rain · 06:00,emv_row,10.36,75,61,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,6,rain,Rain · 06:00,civilian_gps,8.52,30,0,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,6,rain,Rain · 06:00,emv_row,8.07,32,3,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,8,rain,Rain · 08:00,civilian_gps,12.38,80,0,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,8,rain,Rain · 08:00,emv_row,11.3,75,61,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,8,rain,Rain · 08:00,civilian_gps,9.44,30,0,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,8,rain,Rain · 08:00,emv_row,8.83,32,3,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,10,rain,Rain · 10:00,civilian_gps,11.3,80,0,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,10,rain,Rain · 10:00,emv_row,10.36,75,61,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,10,rain,Rain · 10:00,civilian_gps,8.52,30,0,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,10,rain,Rain · 10:00,emv_row,8.07,32,3,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,12,rain,Rain · 12:00,civilian_gps,10.46,80,0,1.28,1.281
+midtown_to_civic,Midtown → Civic Center,12,rain,Rain · 12:00,emv_row,9.63,75,61,1.28,1.281
+uli_west_to_east,Lower West Side → East Village,12,rain,Rain · 12:00,civilian_gps,7.81,30,0,1.28,1.281
+uli_west_to_east,Lower West Side → East Village,12,rain,Rain · 12:00,emv_row,7.49,32,3,1.28,1.281
+midtown_to_civic,Midtown → Civic Center,14,rain,Rain · 14:00,civilian_gps,10.46,80,0,1.28,1.281
+midtown_to_civic,Midtown → Civic Center,14,rain,Rain · 14:00,emv_row,9.63,75,61,1.28,1.281
+uli_west_to_east,Lower West Side → East Village,14,rain,Rain · 14:00,civilian_gps,7.81,30,0,1.28,1.281
+uli_west_to_east,Lower West Side → East Village,14,rain,Rain · 14:00,emv_row,7.49,32,3,1.28,1.281
+midtown_to_civic,Midtown → Civic Center,16,rain,Rain · 16:00,civilian_gps,12.38,80,0,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,16,rain,Rain · 16:00,emv_row,11.3,75,61,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,16,rain,Rain · 16:00,civilian_gps,9.44,30,0,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,16,rain,Rain · 16:00,emv_row,8.83,32,3,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,18,rain,Rain · 18:00,civilian_gps,12.38,80,0,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,18,rain,Rain · 18:00,emv_row,11.3,75,61,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,18,rain,Rain · 18:00,civilian_gps,9.44,30,0,1.6300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,18,rain,Rain · 18:00,emv_row,8.83,32,3,1.6300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,20,rain,Rain · 20:00,civilian_gps,11.3,80,0,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,20,rain,Rain · 20:00,emv_row,10.36,75,61,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,20,rain,Rain · 20:00,civilian_gps,8.52,30,0,1.4300000000000002,1.281
+uli_west_to_east,Lower West Side → East Village,20,rain,Rain · 20:00,emv_row,8.07,32,3,1.4300000000000002,1.281
+midtown_to_civic,Midtown → Civic Center,22,rain,Rain · 22:00,civilian_gps,9.54,80,0,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,22,rain,Rain · 22:00,emv_row,8.82,75,61,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,22,rain,Rain · 22:00,civilian_gps,7.06,30,0,1.1300000000000001,1.281
+uli_west_to_east,Lower West Side → East Village,22,rain,Rain · 22:00,emv_row,6.84,32,3,1.1300000000000001,1.281
+midtown_to_civic,Midtown → Civic Center,0,snow,Snow · 00:00,civilian_gps,10.98,80,0,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,0,snow,Snow · 00:00,emv_row,9.88,75,64,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,0,snow,Snow · 00:00,civilian_gps,8.15,30,0,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,0,snow,Snow · 00:00,emv_row,7.86,32,3,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,2,snow,Snow · 02:00,civilian_gps,10.98,80,0,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,2,snow,Snow · 02:00,emv_row,9.88,75,64,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,2,snow,Snow · 02:00,civilian_gps,8.15,30,0,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,2,snow,Snow · 02:00,emv_row,7.86,32,3,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,4,snow,Snow · 04:00,civilian_gps,10.98,80,0,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,4,snow,Snow · 04:00,emv_row,9.88,75,64,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,4,snow,Snow · 04:00,civilian_gps,8.15,30,0,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,4,snow,Snow · 04:00,emv_row,7.86,32,3,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,6,snow,Snow · 06:00,civilian_gps,12.9,80,0,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,6,snow,Snow · 06:00,emv_row,11.52,75,64,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,6,snow,Snow · 06:00,civilian_gps,9.75,30,0,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,6,snow,Snow · 06:00,emv_row,9.21,32,3,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,8,snow,Snow · 08:00,civilian_gps,14.22,80,0,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,8,snow,Snow · 08:00,emv_row,12.64,75,64,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,8,snow,Snow · 08:00,civilian_gps,10.84,30,0,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,8,snow,Snow · 08:00,emv_row,10.14,32,3,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,10,snow,Snow · 10:00,civilian_gps,12.9,80,0,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,10,snow,Snow · 10:00,emv_row,11.52,75,64,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,10,snow,Snow · 10:00,civilian_gps,9.75,30,0,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,10,snow,Snow · 10:00,emv_row,9.21,32,3,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,12,snow,Snow · 12:00,civilian_gps,11.99,80,0,1.3199999999999998,1.5934
+midtown_to_civic,Midtown → Civic Center,12,snow,Snow · 12:00,emv_row,10.74,75,64,1.3199999999999998,1.5934
+uli_west_to_east,Lower West Side → East Village,12,snow,Snow · 12:00,civilian_gps,8.98,30,0,1.3199999999999998,1.5934
+uli_west_to_east,Lower West Side → East Village,12,snow,Snow · 12:00,emv_row,8.57,32,3,1.3199999999999998,1.5934
+midtown_to_civic,Midtown → Civic Center,14,snow,Snow · 14:00,civilian_gps,11.99,80,0,1.3199999999999998,1.5934
+midtown_to_civic,Midtown → Civic Center,14,snow,Snow · 14:00,emv_row,10.74,75,64,1.3199999999999998,1.5934
+uli_west_to_east,Lower West Side → East Village,14,snow,Snow · 14:00,civilian_gps,8.98,30,0,1.3199999999999998,1.5934
+uli_west_to_east,Lower West Side → East Village,14,snow,Snow · 14:00,emv_row,8.57,32,3,1.3199999999999998,1.5934
+midtown_to_civic,Midtown → Civic Center,16,snow,Snow · 16:00,civilian_gps,14.22,80,0,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,16,snow,Snow · 16:00,emv_row,12.64,75,64,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,16,snow,Snow · 16:00,civilian_gps,10.84,30,0,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,16,snow,Snow · 16:00,emv_row,10.14,32,3,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,18,snow,Snow · 18:00,civilian_gps,14.22,80,0,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,18,snow,Snow · 18:00,emv_row,12.64,75,64,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,18,snow,Snow · 18:00,civilian_gps,10.84,30,0,1.67,1.5934
+uli_west_to_east,Lower West Side → East Village,18,snow,Snow · 18:00,emv_row,10.14,32,3,1.67,1.5934
+midtown_to_civic,Midtown → Civic Center,20,snow,Snow · 20:00,civilian_gps,12.9,80,0,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,20,snow,Snow · 20:00,emv_row,11.52,75,64,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,20,snow,Snow · 20:00,civilian_gps,9.75,30,0,1.4700000000000002,1.5934
+uli_west_to_east,Lower West Side → East Village,20,snow,Snow · 20:00,emv_row,9.21,32,3,1.4700000000000002,1.5934
+midtown_to_civic,Midtown → Civic Center,22,snow,Snow · 22:00,civilian_gps,10.98,80,0,1.17,1.5934
+midtown_to_civic,Midtown → Civic Center,22,snow,Snow · 22:00,emv_row,9.88,75,64,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,22,snow,Snow · 22:00,civilian_gps,8.15,30,0,1.17,1.5934
+uli_west_to_east,Lower West Side → East Village,22,snow,Snow · 22:00,emv_row,7.86,32,3,1.17,1.5934

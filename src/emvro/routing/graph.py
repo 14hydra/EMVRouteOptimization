@@ -10,6 +10,7 @@ import networkx as nx
 import numpy as np
 
 from ..street_features import load_graph, _try_import_ox
+from .emv_corridors import annotate_emv_road_privileges, CIVILIAN_BLOCKED
 
 
 @dataclass
@@ -24,6 +25,104 @@ class RouteResult:
     @property
     def ok(self) -> bool:
         return bool(self.node_path) and len(self.node_path) >= 2
+
+
+def apply_routing_conditions(
+    G: nx.MultiDiGraph,
+    *,
+    hour: int = 12,
+    congestion: float | None = None,
+    conditions: Any | None = None,
+) -> nx.MultiDiGraph:
+    """Recompute civilian_s / emv_s on an already-loaded privileged graph."""
+    wx_civ = 1.0
+    wx_emv = 1.0
+    row_bonus = 1.0
+    cond_meta: dict[str, Any] = {}
+
+    if conditions is not None:
+        hour = int(getattr(conditions, "hour", hour))
+        congestion = float(getattr(conditions, "congestion"))
+        wx_civ = float(conditions.weather_factor_civilian())
+        wx_emv = float(conditions.weather_factor_emv())
+        row_bonus = float(conditions.row_bonus())
+        cond_meta = conditions.to_meta() if hasattr(conditions, "to_meta") else {}
+    elif congestion is None:
+        from .conditions import congestion_for_hour
+
+        congestion = congestion_for_hour(hour)
+
+    congestion = float(congestion)
+
+    for u, v, k, data in G.edges(keys=True, data=True):
+        base = float(data.get("travel_time") or 0.0)
+        length = float(data.get("length") or data.get("length_m") or 0.0)
+        if base <= 0 and length > 0:
+            speed = float(data.get("speed_kph") or 30.0)
+            base = (length / 1000.0) / max(speed, 5.0) * 3600.0
+        hw = data.get("highway")
+        if isinstance(hw, list):
+            hw = hw[0] if hw else ""
+        hw = str(hw or "").lower()
+
+        emv_factor = 0.85
+        if hw in {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link"}:
+            emv_factor = 0.78
+        elif hw in {"secondary", "secondary_link"}:
+            emv_factor = 0.82
+        elif hw in {"residential", "living_street", "unclassified"}:
+            emv_factor = 0.92
+
+        has_bus = bool(
+            data.get("emv_corridor_kind") == "busway"
+            or data.get("busway")
+            or data.get("lanes:bus")
+        )
+        is_contra = data.get("emv_corridor_kind") == "contraflow"
+        civilian_forbidden = bool(data.get("civilian_forbidden")) or has_bus or is_contra
+
+        if has_bus:
+            emv_factor *= 0.88
+        if is_contra:
+            emv_factor *= 0.95
+
+        if hw in {
+            "motorway",
+            "motorway_link",
+            "trunk",
+            "trunk_link",
+            "primary",
+            "primary_link",
+            "secondary",
+            "secondary_link",
+        } or has_bus or is_contra:
+            emv_factor *= row_bonus
+
+        edge_wx_civ = wx_civ
+        edge_wx_emv = wx_emv
+        if wx_civ > 1.01 and (
+            hw in {"trunk", "trunk_link", "primary", "primary_link"} or has_bus or is_contra
+        ):
+            edge_wx_emv = 1.0 + 0.30 * (wx_civ - 1.0)
+
+        if civilian_forbidden:
+            data["civilian_s"] = CIVILIAN_BLOCKED
+        else:
+            data["civilian_s"] = base * congestion * edge_wx_civ
+        data["emv_s"] = base * congestion * edge_wx_emv * emv_factor
+        data["length_m"] = length
+        data["weight_emv"] = data["emv_s"]
+        data["weight_length"] = length if length > 0 else 1.0
+        data["has_bus_lane"] = int(has_bus)
+        data["civilian_forbidden"] = civilian_forbidden
+        if civilian_forbidden and not data.get("emv_corridor"):
+            data["emv_corridor"] = True
+            data["emv_corridor_kind"] = data.get("emv_corridor_kind") or "restricted"
+
+    G.graph["routing_hour"] = hour
+    G.graph["routing_congestion"] = congestion
+    G.graph["routing_conditions"] = cond_meta
+    return G
 
 
 def prepare_routing_graph(
@@ -48,87 +147,12 @@ def prepare_routing_graph(
     except Exception:  # noqa: BLE001
         pass
 
-    wx_civ = 1.0
-    wx_emv = 1.0
-    row_bonus = 1.0
-    cond_meta: dict[str, Any] = {}
-
-    if conditions is not None:
-        hour = int(getattr(conditions, "hour", hour))
-        congestion = float(getattr(conditions, "congestion"))
-        wx_civ = float(conditions.weather_factor_civilian())
-        wx_emv = float(conditions.weather_factor_emv())
-        row_bonus = float(conditions.row_bonus())
-        cond_meta = conditions.to_meta() if hasattr(conditions, "to_meta") else {}
-    elif congestion is None:
-        # Congestion multiplier by hour (simple BPR-style prior)
-        if hour in (7, 8, 9, 16, 17, 18, 19):
-            congestion = 1.45
-        elif hour >= 22 or hour < 6:
-            congestion = 1.05
-        else:
-            congestion = 1.20
-
-    congestion = float(congestion)
-
-    # EMV can use bus lanes / move faster — discount travel_time on
-    # primary/trunk; residential stays closer to civilian (proxy until LION).
-    for u, v, k, data in G.edges(keys=True, data=True):
-        base = float(data.get("travel_time") or 0.0)
-        length = float(data.get("length") or 0.0)
-        if base <= 0 and length > 0:
-            speed = float(data.get("speed_kph") or 30.0)
-            base = (length / 1000.0) / max(speed, 5.0) * 3600.0
-        hw = data.get("highway")
-        if isinstance(hw, list):
-            hw = hw[0] if hw else ""
-        hw = str(hw or "").lower()
-
-        # Base EMV vs civilian street factor (special ROW / priority corridors)
-        emv_factor = 0.85
-        if hw in {"motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link"}:
-            emv_factor = 0.78
-        elif hw in {"secondary", "secondary_link"}:
-            emv_factor = 0.82
-        elif hw in {"residential", "living_street", "unclassified"}:
-            emv_factor = 0.92
-        has_bus = bool(data.get("busway") or data.get("lanes:bus"))
-        if has_bus:
-            # Dedicated bus lanes: civilians typically cannot use them; EMVs can.
-            emv_factor *= 0.88
-
-        # Congestion-scaled ROW: more value when traffic is bad
-        if hw in {
-            "motorway",
-            "motorway_link",
-            "trunk",
-            "trunk_link",
-            "primary",
-            "primary_link",
-            "secondary",
-            "secondary_link",
-        } or has_bus:
-            emv_factor *= row_bonus
-
-        # Weather: civilians take full hit; EMVs take reduced hit, and
-        # primary/bus corridors take even less (wider avenues / traction story).
-        edge_wx_civ = wx_civ
-        edge_wx_emv = wx_emv
-        if wx_civ > 1.01 and (
-            hw in {"trunk", "trunk_link", "primary", "primary_link"} or has_bus
-        ):
-            edge_wx_emv = 1.0 + 0.30 * (wx_civ - 1.0)
-
-        data["civilian_s"] = base * congestion * edge_wx_civ
-        data["emv_s"] = base * congestion * edge_wx_emv * emv_factor
-        data["length_m"] = length
-        data["weight_emv"] = data["emv_s"]
-        data["weight_length"] = length if length > 0 else 1.0
-        data["has_bus_lane"] = int(has_bus)
-
-    G.graph["routing_hour"] = hour
-    G.graph["routing_congestion"] = congestion
-    G.graph["routing_conditions"] = cond_meta
+    # Busways + EMV contraflow on primary one-ways (Google Maps won't use these)
+    privilege_stats = annotate_emv_road_privileges(G)
+    apply_routing_conditions(
+        G, hour=hour, congestion=congestion, conditions=conditions
+    )
+    G.graph["emv_privileges"] = privilege_stats
     return G
 
 

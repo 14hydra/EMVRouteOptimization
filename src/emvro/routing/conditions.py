@@ -142,6 +142,71 @@ CONDITION_PRESETS: dict[str, RoutingConditions] = {
 }
 
 
+def congestion_for_hour(hour: int) -> float:
+    """Hour-of-day congestion prior (TomTom-style stand-in)."""
+    h = int(hour) % 24
+    if h in (7, 8, 9, 16, 17, 18, 19):
+        return 1.55
+    if h in (6, 10, 15, 20):
+        return 1.35
+    if h >= 22 or h < 5:
+        return 1.05
+    if h == 5:
+        return 1.12
+    return 1.20
+
+
+# Weather knobs independent of clock hour (slider × weather UI)
+WEATHER_PROFILES: dict[str, dict[str, float]] = {
+    "clear": {
+        "wx_precip_mm": 0.0,
+        "wx_snow_mm": 0.0,
+        "wx_visibility_m": 10000.0,
+        "wx_wind_kmh": 10.0,
+        "wx_temp_c": 18.0,
+    },
+    "rain": {
+        "wx_precip_mm": 4.5,
+        "wx_snow_mm": 0.0,
+        "wx_visibility_m": 3500.0,
+        "wx_wind_kmh": 18.0,
+        "wx_temp_c": 14.0,
+    },
+    "snow": {
+        "wx_precip_mm": 1.2,
+        "wx_snow_mm": 1.8,
+        "wx_visibility_m": 1200.0,
+        "wx_wind_kmh": 28.0,
+        "wx_temp_c": -2.0,
+    },
+}
+
+
+def conditions_at(hour: int, weather: str = "clear") -> RoutingConditions:
+    """Build conditions for a clock hour + weather mode (map slider UI)."""
+    weather = (weather or "clear").lower()
+    if weather not in WEATHER_PROFILES:
+        raise KeyError(f"Unknown weather {weather!r}; use {list(WEATHER_PROFILES)}")
+    h = int(hour) % 24
+    cong = congestion_for_hour(h)
+    # Bad weather slightly worsens traffic beyond the hour prior
+    if weather == "rain":
+        cong = min(1.75, cong + 0.08)
+    elif weather == "snow":
+        cong = min(1.80, cong + 0.12)
+    wx = WEATHER_PROFILES[weather]
+    label_wx = {"clear": "Clear", "rain": "Rain", "snow": "Snow"}[weather]
+    return RoutingConditions(
+        id=f"{weather}_h{h:02d}",
+        label=f"{label_wx} · {h:02d}:00",
+        hour=h,
+        congestion=float(cong),
+        description=f"Slider state hour={h} weather={weather}",
+        source="slider",
+        **wx,
+    )
+
+
 def list_condition_ids() -> list[str]:
     return list(CONDITION_PRESETS.keys())
 
