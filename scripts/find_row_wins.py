@@ -200,7 +200,7 @@ def build_row_wins_map(
     ).add_to(m)
 
     civ_fg = folium.FeatureGroup(name="Civilian GPS route", show=True)
-    emv_fg = folium.FeatureGroup(name="Ambulance with right-of-way (faster)", show=True)
+    emv_fg = folium.FeatureGroup(name="EMV Dijkstra (with right-of-way)", show=True)
     gold_fg = folium.FeatureGroup(name="Roads civilians/Google Maps cannot use", show=True)
     markers_fg = folium.FeatureGroup(name="Example trips", show=True)
     for fg in (civ_fg, emv_fg, gold_fg, markers_fg):
@@ -256,11 +256,11 @@ def build_row_wins_map(
         popup = (
             f"<b>{title}</b><br>Conditions: {condition_label}<br>"
             f"Civilian GPS: {w['civ_s']/60:.2f} min → "
-            f"Ambulance with right-of-way: {w['emv_s']/60:.2f} min<br>"
+            f"EMV Dijkstra (with right-of-way): {w['emv_s']/60:.2f} min<br>"
             f"Faster by: <b>{saved_m:.2f} min ({w['pct_vs_civ']:.1f}%)</b><br>"
-            f"Of which from ambulance-only roads: <b>{row_m:.2f} min</b><br>"
-            f"Ambulance-only road segments used: {w['emv_only_edges']}<br>"
-            f"Same ambulance without those privileges: {w['emv_no_row_s']/60:.2f} min"
+            f"Of which from EMV-only roads: <b>{row_m:.2f} min</b><br>"
+            f"EMV-only road segments used: {w['emv_only_edges']}<br>"
+            f"EMV Dijkstra without those privileges: {w['emv_no_row_s']/60:.2f} min"
         )
         folium.PolyLine(
             civ_coords,
@@ -278,7 +278,7 @@ def build_row_wins_map(
             opacity=0.95,
             popup=popup,
             tooltip=(
-                f"Example {i+1} ambulance with right-of-way "
+                f"Example {i+1} EMV Dijkstra "
                 f"({w['emv_s']/60:.1f} min, {saved_m:.1f} min faster)"
             ),
         ).add_to(emv_fg)
@@ -286,10 +286,10 @@ def build_row_wins_map(
         for seg in path_corridor_segments(G, w["emv_path"]):
             kind = seg.get("kind") or "emv_only"
             kind_label = {
-                "contraflow": "Wrong-way lane (ambulance only)",
-                "busway": "Bus lane / busway (ambulance only)",
-                "restricted": "Restricted road (ambulance only)",
-            }.get(kind, f"Ambulance-only ({kind})")
+                "contraflow": "Wrong-way lane / contraflow (EMV only)",
+                "busway": "Bus lane / busway (EMV only)",
+                "restricted": "Restricted road (EMV only)",
+            }.get(kind, f"EMV-only ({kind})")
             folium.PolyLine(
                 seg["coords"],
                 color="#f1c40f",
@@ -306,19 +306,19 @@ def build_row_wins_map(
     <div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:rgba(255,255,255,0.97);
                 padding:12px 14px;border:1px solid #999;border-radius:8px;font:13px/1.45 sans-serif;
                 box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:360px;">
-      <div style="font-weight:700;margin-bottom:6px;">When ambulance right-of-way beats civilian GPS</div>
-      <div>Real trip examples where the ambulance is faster <b>because</b> it uses roads
+      <div style="font-weight:700;margin-bottom:6px;">When EMV right-of-way beats civilian GPS</div>
+      <div>Real trip examples where <b>EMV Dijkstra</b> is faster <b>because</b> it uses roads
            civilians and Google Maps cannot (wrong-way / bus lanes).
            Conditions: {condition_label}.</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
       <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS route</div>
-      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance with right-of-way</div>
+      <div><span style="color:#8e44ad;font-weight:700;">━━</span> EMV Dijkstra (with right-of-way)</div>
       <div><span style="color:#f1c40f;font-weight:700;">━━</span> Road civilians/Google Maps cannot use</div>
       <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
            <span style="color:#e67e22;">●</span> Destination</div>
       <div style="margin-top:6px;font-size:12px;color:#444;">
-        “Right-of-way X min” = minutes saved from those ambulance-only roads
-        (ambulance without privileges − ambulance with privileges).
+        “Right-of-way X min” = minutes saved from those EMV-only roads
+        (EMV Dijkstra without privileges − with privileges).
       </div>
     </div>
     """

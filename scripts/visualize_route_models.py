@@ -50,30 +50,30 @@ MODEL_LABELS = {
     "control_google_maps": "Google Maps\n(civilian GPS)",
     "control_distance": "Shortest\ndistance",
     "control_civilian_time": "OSM civilian\nGPS",
-    "emv_dijkstra": "Ambulance\nfastest path",
-    "mipsstw_mcs": "Ambulance\noptimizer",
-    "composite_drl": "Ambulance\nlearning route",
-    "gbdt_router": "Ambulance\nML time model",
+    "emv_dijkstra": "EMV\nDijkstra",
+    "mipsstw_mcs": "MIPSSTW\n+ MCS",
+    "composite_drl": "Composite\nDRL",
+    "gbdt_router": "GBDT\nrouter",
 }
 
-# Plain-language names for map layer toggles / popups (no jargon acronyms alone)
+# Map layer / popup names: keep real model names, with a short plain hint
 MAP_MODEL_LABELS = {
     "control_google_maps": "Google Maps (civilian GPS)",
-    "control_civilian_time": "OpenStreetMap civilian route",
-    "control_distance": "Shortest-distance route",
-    "emv_dijkstra": "Ambulance fastest path",
-    "mipsstw_mcs": "Ambulance optimizer (search)",
-    "composite_drl": "Ambulance learning route",
-    "gbdt_router": "Ambulance ML time model",
+    "control_civilian_time": "OSM civilian GPS",
+    "control_distance": "Shortest distance",
+    "emv_dijkstra": "EMV Dijkstra",
+    "mipsstw_mcs": "MIPSSTW + MCS",
+    "composite_drl": "Composite DRL",
+    "gbdt_router": "GBDT router",
     "civilian_gps": "Civilian GPS route",
-    "emv_row": "Ambulance with right-of-way",
+    "emv_row": "EMV Dijkstra (with right-of-way)",
 }
 
 CORRIDOR_KIND_LABELS = {
-    "contraflow": "Wrong-way lane (ambulance only)",
-    "busway": "Bus lane / busway (ambulance only)",
-    "restricted": "Restricted road (ambulance only)",
-    "emv_only": "Ambulance-only road segment",
+    "contraflow": "Wrong-way lane / contraflow (EMV only)",
+    "busway": "Bus lane / busway (EMV only)",
+    "restricted": "Restricted road (EMV only)",
+    "emv_only": "EMV-only road segment",
 }
 
 
@@ -401,17 +401,11 @@ def build_multi_route_map(
             name="Google Maps (civilian GPS)", show=True
         ),
         "control_civilian_time": folium.FeatureGroup(
-            name="OpenStreetMap civilian route", show=False
+            name="OSM civilian GPS", show=False
         ),
-        "mipsstw_mcs": folium.FeatureGroup(
-            name="Ambulance optimizer (search)", show=True
-        ),
-        "composite_drl": folium.FeatureGroup(
-            name="Ambulance learning route", show=True
-        ),
-        "gbdt_router": folium.FeatureGroup(
-            name="Ambulance ML time model", show=True
-        ),
+        "mipsstw_mcs": folium.FeatureGroup(name="MIPSSTW + MCS", show=True),
+        "composite_drl": folium.FeatureGroup(name="Composite DRL", show=True),
+        "gbdt_router": folium.FeatureGroup(name="GBDT router", show=True),
     }
     for fg in model_layers.values():
         fg.add_to(m)
@@ -591,10 +585,10 @@ def build_multi_route_map(
            Times are estimated travel minutes for that path.</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
       <div><span style="color:#111;">- - -</span> Google Maps (civilian GPS)</div>
-      <div><span style="color:#7f8c8d;">╌ ╌</span> OpenStreetMap civilian route</div>
-      <div><span style="color:#c0392b;font-weight:700;">━━</span> Ambulance optimizer (search)</div>
-      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance learning route</div>
-      <div><span style="color:#1e8449;font-weight:700;">- - -</span> Ambulance ML time model</div>
+      <div><span style="color:#7f8c8d;">╌ ╌</span> OSM civilian GPS</div>
+      <div><span style="color:#c0392b;font-weight:700;">━━</span> MIPSSTW + MCS</div>
+      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Composite DRL</div>
+      <div><span style="color:#1e8449;font-weight:700;">- - -</span> GBDT router</div>
       <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
            <span style="color:#e67e22;">●</span> Destination</div>
       <div style="margin-top:8px;font-size:12px;color:#444;">
@@ -783,10 +777,10 @@ def build_conditions_route_map(
 
                     friendly = _map_model_label(name)
                     if name == "civilian_gps":
-                        detail = f"{mins:.2f} min (civilian GPS cannot use ambulance-only roads)"
+                        detail = f"{mins:.2f} min (civilian GPS cannot use EMV-only roads)"
                     else:
                         detail = (
-                            f"{mins:.2f} min · uses {n_corr} ambulance-only road segment"
+                            f"{mins:.2f} min · uses {n_corr} EMV-only road segment"
                             f"{'s' if n_corr != 1 else ''}"
                         )
                     folium.PolyLine(
@@ -897,7 +891,7 @@ def build_conditions_route_map(
       <hr style="border:none;border-top:1px solid #ddd;margin:12px 0 8px;">
       <div style="font-size:12px;">
         <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS route</div>
-        <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance with right-of-way</div>
+        <div><span style="color:#8e44ad;font-weight:700;">━━</span> EMV Dijkstra (with right-of-way)</div>
         <div><span style="color:#f1c40f;font-weight:700;">━━</span> Road civilians/Google Maps cannot use</div>
         <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
              <span style="color:#e67e22;">●</span> Destination</div>
@@ -979,12 +973,12 @@ def build_conditions_route_map(
             "</b> (civilian)</div>" +
             "<div style='margin-top:4px;'>Civilian GPS <b>" +
             (st.civ_min != null ? st.civ_min + " min" : "—") +
-            "</b> → Ambulance with right-of-way <b>" +
+            "</b> → EMV Dijkstra <b>" +
             (st.emv_min != null ? st.emv_min + " min" : "—") + "</b></div>" +
             "<div>Time saved <b>" +
             (st.saved_min != null ? st.saved_min + " min" : "—") +
             "</b> (" + (st.pct_faster != null ? st.pct_faster + "%" : "—") +
-            ") · ambulance-only segments ~" + (st.emv_only_edges || 0) + "</div>";
+            ") · EMV-only segments ~" + (st.emv_only_edges || 0) + "</div>";
         }}
       }}
 

@@ -66,10 +66,10 @@ MODEL_COLORS = {
 }
 MODEL_LABELS = {
     "control_civilian_time": "Civilian GPS",
-    "emv_dijkstra": "Ambulance fastest path",
-    "mipsstw_mcs": "Ambulance optimizer",
-    "composite_drl": "Ambulance learning route",
-    "gbdt_router": "Ambulance ML time model",
+    "emv_dijkstra": "EMV Dijkstra",
+    "mipsstw_mcs": "MIPSSTW + MCS",
+    "composite_drl": "Composite DRL",
+    "gbdt_router": "GBDT router",
 }
 
 
