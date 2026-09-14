@@ -21,15 +21,15 @@
   "wins_found": 107,
   "top_mapped": 8,
   "thresholds": {
-    "min_pct": 3.0,
-    "min_saved_s": 20.0,
-    "min_row_attrib_s": 12.0
+    "min_pct": 4.0,
+    "min_saved_s": 25.0,
+    "min_row_attrib_s": 15.0
   },
   "top": [
     {
       "rank": 1,
       "trip_id": "79704652",
-      "label": "QUEENS \u2192 ZIP 11414.0",
+      "label": "Queens \u2192 ZIP 11414",
       "borough": "QUEENS",
       "zipcode": 11414.0,
       "civ_min": 6.72,
@@ -49,7 +49,7 @@
     {
       "rank": 2,
       "trip_id": "79719837",
-      "label": "QUEENS \u2192 ZIP 11365.0",
+      "label": "Queens \u2192 ZIP 11365",
       "borough": "QUEENS",
       "zipcode": 11365.0,
       "civ_min": 4.35,
@@ -69,7 +69,7 @@
     {
       "rank": 3,
       "trip_id": "79701152",
-      "label": "MANHATTAN \u2192 ZIP 10035.0",
+      "label": "Manhattan \u2192 ZIP 10035",
       "borough": "MANHATTAN",
       "zipcode": 10035.0,
       "civ_min": 10.34,
@@ -89,7 +89,7 @@
     {
       "rank": 4,
       "trip_id": "79701125",
-      "label": "BROOKLYN \u2192 ZIP 11222.0",
+      "label": "Brooklyn \u2192 ZIP 11222",
       "borough": "BROOKLYN",
       "zipcode": 11222.0,
       "civ_min": 5.91,
@@ -109,7 +109,7 @@
     {
       "rank": 5,
       "trip_id": "79705567",
-      "label": "BROOKLYN \u2192 ZIP 11232.0",
+      "label": "Brooklyn \u2192 ZIP 11232",
       "borough": "BROOKLYN",
       "zipcode": 11232.0,
       "civ_min": 2.19,
@@ -129,7 +129,7 @@
     {
       "rank": 6,
       "trip_id": "79716360",
-      "label": "QUEENS \u2192 ZIP 11104.0",
+      "label": "Queens \u2192 ZIP 11104",
       "borough": "QUEENS",
       "zipcode": 11104.0,
       "civ_min": 9.46,
@@ -149,7 +149,7 @@
     {
       "rank": 7,
       "trip_id": "79727024",
-      "label": "QUEENS \u2192 ZIP 11364.0",
+      "label": "Queens \u2192 ZIP 11364",
       "borough": "QUEENS",
       "zipcode": 11364.0,
       "civ_min": 5.99,
@@ -169,7 +169,7 @@
     {
       "rank": 8,
       "trip_id": "79706641",
-      "label": "QUEENS \u2192 ZIP 11357.0",
+      "label": "Queens \u2192 ZIP 11357",
       "borough": "QUEENS",
       "zipcode": 11357.0,
       "civ_min": 6.41,

@@ -28,6 +28,16 @@ sys.path.insert(0, str(ROOT / "src"))
 sns.set_theme(style="whitegrid", context="talk")
 
 
+def _fmt_zip(z) -> str:
+    if z is None or (isinstance(z, float) and np.isnan(z)):
+        return "?"
+    try:
+        return str(int(float(z)))
+    except (TypeError, ValueError):
+        s = str(z).strip()
+        return s[:-2] if s.endswith(".0") else s or "?"
+
+
 def _load(raw: Path, processed: Path, samples: Path):
     od = pd.read_csv(processed / "od_pairs_inferred_starts.csv", low_memory=False)
     for c in ("travel_seconds", "response_seconds", "crow_flies_km", "start_lat", "start_lon", "dest_lat", "dest_lon"):
@@ -245,12 +255,12 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
             "start_color": start_color,
             "end_color": "#ff7f0e",
             "popup_start": (
-                f"Inferred EMV start<br>{layer}: {r.get('depot_name')}"
+                f"Inferred ambulance start<br>{layer}: {r.get('depot_name')}"
                 f"<br>mode={r.get('start_mode')}"
             ),
             "popup_end": (
                 f"Incident ZIP centroid<br>id={r.get('incident_id')}"
-                f"<br>ZIP {r.get('zipcode')}"
+                f"<br>ZIP {_fmt_zip(r.get('zipcode'))}"
             ),
         }
         od_features.append(pair)
@@ -313,16 +323,16 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
         box-shadow: 0 2px 8px rgba(0,0,0,0.18);
         max-width: 340px;
     ">
-      <div style="font-weight:700; margin-bottom:8px;">EMV map key</div>
+      <div style="font-weight:700; margin-bottom:8px;">NYC ambulance trip map</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ff7f0e;margin-right:8px;"></span>Incident ZIP centroid (destination)</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#1f77b4;margin-right:8px;"></span>Inferred start: EMS station</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2ca02c;margin-right:8px;"></span>Inferred start: hospital bay</div>
-      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9467bd;margin-right:8px;"></span>Inferred start / CSL: on-road staging</div>
+      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9467bd;margin-right:8px;"></span>Inferred start: on-road staging (CSL)</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#7f7f7f;margin-right:8px;"></span>Inferred start: other / fallback</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
       <div style="margin-bottom:4px;"><b>Blue + marker</b> — EMS station facility</div>
       <div style="margin-bottom:4px;"><b>Green + marker</b> — Hospital bay facility</div>
-      <div style="margin-bottom:4px;"><b>Purple dots (clustered)</b> — Synthetic CSL candidates</div>
+      <div style="margin-bottom:4px;"><b>Purple dots (clustered)</b> — Synthetic on-road staging candidates</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
       <div style="font-weight:600;margin-bottom:4px;">Numbered circles (clusters)</div>
       <div style="margin-bottom:4px;">

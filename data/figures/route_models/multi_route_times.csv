@@ -1,21 +1,26 @@
 trip,label,model,travel_minutes,distance_km,n_edges,reaches_dest,end_lat,end_lon
-midtown_to_civic,Midtown → Civic Center,control_civilian_time,11.22,5.91,80,True,40.7116883,-74.0058474
-midtown_to_civic,Midtown → Civic Center,mipsstw_mcs,11.15,5.954,84,True,40.7116883,-74.0058474
-midtown_to_civic,Midtown → Civic Center,composite_drl,11.15,5.954,84,True,40.7116883,-74.0058474
-midtown_to_civic,Midtown → Civic Center,gbdt_router,11.18,6.141,85,True,40.7116883,-74.0058474
-bronx_to_harlem,Bronx EMS → Harlem,control_civilian_time,6.08,3.485,41,True,40.811546,-73.9465492
-bronx_to_harlem,Bronx EMS → Harlem,mipsstw_mcs,6.08,3.485,41,True,40.811546,-73.9465492
-bronx_to_harlem,Bronx EMS → Harlem,composite_drl,6.08,3.485,41,True,40.811546,-73.9465492
-bronx_to_harlem,Bronx EMS → Harlem,gbdt_router,6.08,3.485,41,True,40.811546,-73.9465492
-brooklyn_to_downtown,Brooklyn EMS → Downtown Bk,control_civilian_time,3.6,1.91,22,True,40.6922318,-73.9872962
-brooklyn_to_downtown,Brooklyn EMS → Downtown Bk,mipsstw_mcs,3.6,1.91,22,True,40.6922318,-73.9872962
-brooklyn_to_downtown,Brooklyn EMS → Downtown Bk,composite_drl,3.6,1.91,22,True,40.6922318,-73.9872962
-brooklyn_to_downtown,Brooklyn EMS → Downtown Bk,gbdt_router,3.6,1.91,22,True,40.6922318,-73.9872962
-queens_to_flushing,Queens corridor → Flushing,control_civilian_time,10.13,5.777,60,True,40.7618998,-73.8296597
-queens_to_flushing,Queens corridor → Flushing,mipsstw_mcs,9.76,9.317,40,True,40.7618998,-73.8296597
-queens_to_flushing,Queens corridor → Flushing,composite_drl,9.76,9.317,40,True,40.7618998,-73.8296597
-queens_to_flushing,Queens corridor → Flushing,gbdt_router,9.76,9.317,40,True,40.7618998,-73.8296597
-uli_west_to_east,Lower West Side → East Village,control_civilian_time,8.24,4.342,30,True,40.726281,-73.980333
-uli_west_to_east,Lower West Side → East Village,mipsstw_mcs,8.06,4.378,31,True,40.726281,-73.980333
-uli_west_to_east,Lower West Side → East Village,composite_drl,8.06,4.378,31,True,40.726281,-73.980333
-uli_west_to_east,Lower West Side → East Village,gbdt_router,8.06,4.378,31,True,40.726281,-73.980333
+midtown_to_civic,Midtown → Civic Center,control_google_maps,26.33,9.234,88,True,40.7116883,-74.0058474
+midtown_to_civic,Midtown → Civic Center,control_civilian_time,12.0,5.91,80,True,40.7116883,-74.0058474
+midtown_to_civic,Midtown → Civic Center,mipsstw_mcs,11.44,7.219,75,True,40.7116883,-74.0058474
+midtown_to_civic,Midtown → Civic Center,composite_drl,11.44,7.219,75,True,40.7116883,-74.0058474
+midtown_to_civic,Midtown → Civic Center,gbdt_router,11.75,5.93,81,True,40.7116883,-74.0058474
+bronx_to_harlem,Bronx EMS station → Harlem,control_google_maps,12.47,3.736,32,True,40.811546,-73.9465492
+bronx_to_harlem,Bronx EMS station → Harlem,control_civilian_time,6.5,3.485,41,True,40.811546,-73.9465492
+bronx_to_harlem,Bronx EMS station → Harlem,mipsstw_mcs,5.68,3.208,38,True,40.811546,-73.9465492
+bronx_to_harlem,Bronx EMS station → Harlem,composite_drl,5.68,3.208,38,True,40.811546,-73.9465492
+bronx_to_harlem,Bronx EMS station → Harlem,gbdt_router,5.84,3.198,38,True,40.811546,-73.9465492
+brooklyn_to_downtown,Brooklyn EMS station → Downtown Brooklyn,control_google_maps,10.25,1.976,13,True,40.6922318,-73.9872962
+brooklyn_to_downtown,Brooklyn EMS station → Downtown Brooklyn,control_civilian_time,3.85,1.91,22,True,40.6922318,-73.9872962
+brooklyn_to_downtown,Brooklyn EMS station → Downtown Brooklyn,mipsstw_mcs,3.85,1.91,22,True,40.6922318,-73.9872962
+brooklyn_to_downtown,Brooklyn EMS station → Downtown Brooklyn,composite_drl,3.85,1.91,22,True,40.6922318,-73.9872962
+brooklyn_to_downtown,Brooklyn EMS station → Downtown Brooklyn,gbdt_router,3.85,1.91,22,True,40.6922318,-73.9872962
+queens_to_flushing,Jackson Heights → Flushing,control_google_maps,15.97,9.63,120,True,40.7618998,-73.8296597
+queens_to_flushing,Jackson Heights → Flushing,control_civilian_time,10.83,5.777,60,True,40.7618998,-73.8296597
+queens_to_flushing,Jackson Heights → Flushing,mipsstw_mcs,9.79,9.276,38,True,40.7618998,-73.8296597
+queens_to_flushing,Jackson Heights → Flushing,composite_drl,9.79,9.276,38,True,40.7618998,-73.8296597
+queens_to_flushing,Jackson Heights → Flushing,gbdt_router,9.79,9.276,38,True,40.7618998,-73.8296597
+uli_west_to_east,Chelsea → East Village,control_google_maps,18.15,4.622,14,True,40.726281,-73.980333
+uli_west_to_east,Chelsea → East Village,control_civilian_time,8.81,4.342,30,True,40.726281,-73.980333
+uli_west_to_east,Chelsea → East Village,mipsstw_mcs,8.61,4.384,32,True,40.726281,-73.980333
+uli_west_to_east,Chelsea → East Village,composite_drl,8.61,4.384,32,True,40.726281,-73.980333
+uli_west_to_east,Chelsea → East Village,gbdt_router,8.61,4.378,31,True,40.726281,-73.980333

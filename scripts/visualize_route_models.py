@@ -47,14 +47,43 @@ MODEL_COLORS = {
     "gbdt_router": "#1e8449",
 }
 MODEL_LABELS = {
-    "control_google_maps": "Control\nGoogle Maps",
-    "control_distance": "Control\nshortest dist.",
-    "control_civilian_time": "Control\nOSM civilian",
-    "emv_dijkstra": "EMV\nDijkstra",
-    "mipsstw_mcs": "MIPSSTW\n+ MCS",
-    "composite_drl": "Composite\nDRL",
-    "gbdt_router": "GBDT\nrouter",
+    "control_google_maps": "Google Maps\n(civilian GPS)",
+    "control_distance": "Shortest\ndistance",
+    "control_civilian_time": "OSM civilian\nGPS",
+    "emv_dijkstra": "Ambulance\nfastest path",
+    "mipsstw_mcs": "Ambulance\noptimizer",
+    "composite_drl": "Ambulance\nlearning route",
+    "gbdt_router": "Ambulance\nML time model",
 }
+
+# Plain-language names for map layer toggles / popups (no jargon acronyms alone)
+MAP_MODEL_LABELS = {
+    "control_google_maps": "Google Maps (civilian GPS)",
+    "control_civilian_time": "OpenStreetMap civilian route",
+    "control_distance": "Shortest-distance route",
+    "emv_dijkstra": "Ambulance fastest path",
+    "mipsstw_mcs": "Ambulance optimizer (search)",
+    "composite_drl": "Ambulance learning route",
+    "gbdt_router": "Ambulance ML time model",
+    "civilian_gps": "Civilian GPS route",
+    "emv_row": "Ambulance with right-of-way",
+}
+
+CORRIDOR_KIND_LABELS = {
+    "contraflow": "Wrong-way lane (ambulance only)",
+    "busway": "Bus lane / busway (ambulance only)",
+    "restricted": "Restricted road (ambulance only)",
+    "emv_only": "Ambulance-only road segment",
+}
+
+
+def _map_model_label(name: str) -> str:
+    return MAP_MODEL_LABELS.get(name, MODEL_LABELS.get(name, name).replace("\n", " "))
+
+
+def _corridor_kind_label(kind: str | None) -> str:
+    k = (kind or "emv_only").lower()
+    return CORRIDOR_KIND_LABELS.get(k, f"Ambulance-only ({kind})")
 
 
 def _save(fig, path: Path):
@@ -264,25 +293,25 @@ MAP_SCENARIOS = [
     },
     {
         "id": "bronx_to_harlem",
-        "label": "Bronx EMS → Harlem",
+        "label": "Bronx EMS station → Harlem",
         "origin": {"lat": 40.83487, "lon": -73.92797},
         "dest": {"lat": 40.8116, "lon": -73.9465},
     },
     {
         "id": "brooklyn_to_downtown",
-        "label": "Brooklyn EMS → Downtown Bk",
+        "label": "Brooklyn EMS station → Downtown Brooklyn",
         "origin": {"lat": 40.67835, "lon": -73.99022},
         "dest": {"lat": 40.6920, "lon": -73.9870},
     },
     {
         "id": "queens_to_flushing",
-        "label": "Queens corridor → Flushing",
+        "label": "Jackson Heights → Flushing",
         "origin": {"lat": 40.7465, "lon": -73.8910},
         "dest": {"lat": 40.7620, "lon": -73.8300},
     },
     {
         "id": "uli_west_to_east",
-        "label": "Lower West Side → East Village",
+        "label": "Chelsea → East Village",
         "origin": {"lat": 40.74958, "lon": -73.99985},
         "dest": {"lat": 40.7265, "lon": -73.9815},
     },
@@ -368,11 +397,21 @@ def build_multi_route_map(
     ).add_to(m)
 
     model_layers = {
-        "control_google_maps": folium.FeatureGroup(name="Control: Google Maps", show=True),
-        "control_civilian_time": folium.FeatureGroup(name="Control: OSM civilian", show=False),
-        "mipsstw_mcs": folium.FeatureGroup(name="MIPSSTW + MCS", show=True),
-        "composite_drl": folium.FeatureGroup(name="Composite DRL", show=True),
-        "gbdt_router": folium.FeatureGroup(name="GBDT router", show=True),
+        "control_google_maps": folium.FeatureGroup(
+            name="Google Maps (civilian GPS)", show=True
+        ),
+        "control_civilian_time": folium.FeatureGroup(
+            name="OpenStreetMap civilian route", show=False
+        ),
+        "mipsstw_mcs": folium.FeatureGroup(
+            name="Ambulance optimizer (search)", show=True
+        ),
+        "composite_drl": folium.FeatureGroup(
+            name="Ambulance learning route", show=True
+        ),
+        "gbdt_router": folium.FeatureGroup(
+            name="Ambulance ML time model", show=True
+        ),
     }
     for fg in model_layers.values():
         fg.add_to(m)
@@ -427,8 +466,8 @@ def build_multi_route_map(
             fill=True,
             fill_color="#3498db",
             fill_opacity=0.95,
-            popup=f"<b>Origin {i+1}</b><br>{sc['label']}",
-            tooltip=f"O{i+1}: {sc['label']}",
+            popup=f"<b>Start {i+1}</b><br>{sc['label']}",
+            tooltip=f"Start {i+1}: {sc['label']}",
         ).add_to(trip_fg)
         folium.CircleMarker(
             d_ll,
@@ -437,8 +476,8 @@ def build_multi_route_map(
             fill=True,
             fill_color="#e67e22",
             fill_opacity=0.95,
-            popup=f"<b>Dest {i+1}</b><br>{sc['label']}",
-            tooltip=f"D{i+1}: {sc['label']}",
+            popup=f"<b>Destination {i+1}</b><br>{sc['label']}",
+            tooltip=f"Destination {i+1}: {sc['label']}",
         ).add_to(trip_fg)
         folium.Marker(
             [(o_ll[0] + d_ll[0]) / 2, (o_ll[1] + d_ll[1]) / 2],
@@ -492,14 +531,10 @@ def build_multi_route_map(
 
             popup = (
                 f"<b>Trip {i+1}: {sc['label']}</b><br>"
-                f"{MODEL_LABELS.get(name, name).replace(chr(10), ' ')}<br>"
-                f"{mins:.2f} min · {km:.2f} km · {result.n_edges} edges<br>"
-                f"reaches dest: yes"
+                f"{_map_model_label(name)}<br>"
+                f"{mins:.2f} min · {km:.2f} km"
             )
-            tip = (
-                f"Trip {i+1}: "
-                f"{MODEL_LABELS.get(name, name).replace(chr(10), ' ')} ({mins:.1f} min)"
-            )
+            tip = f"Trip {i+1}: {_map_model_label(name)} ({mins:.1f} min)"
             # Folium/Leaflet: a layer can only have one parent. Duplicate the
             # polyline so model toggles AND trip toggles both work.
             for parent in (model_layers[name], trip_fg):
@@ -521,7 +556,7 @@ def build_multi_route_map(
                     color="#8e44ad",
                     fill=True,
                     fill_color="#8e44ad",
-                    popup=f"DRL end — Trip {i+1}",
+                    popup=f"Route end — Trip {i+1}",
                 ).add_to(trip_fg)
 
             trip_rows.append(
@@ -550,18 +585,22 @@ def build_multi_route_map(
     legend = """
     <div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:rgba(255,255,255,0.96);
                 padding:12px 14px;border:1px solid #999;border-radius:8px;font:13px/1.45 sans-serif;
-                box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:300px;">
-      <div style="font-weight:700;margin-bottom:6px;">Multi-route map</div>
-      <div>Toggle <b>Trip N</b> or model layers. For traffic/weather + Google-untakeable
-           EMV corridors, open <b>route_conditions_map.html</b>.</div>
+                box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:320px;">
+      <div style="font-weight:700;margin-bottom:6px;">Route comparison map</div>
+      <div>Use the layer list (top right) to show/hide each <b>trip</b> or <b>route type</b>.
+           Times are estimated travel minutes for that path.</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-      <div><span style="color:#111;">- - -</span> Google Maps control</div>
-      <div><span style="color:#7f8c8d;">╌ ╌</span> OSM civilian</div>
-      <div><span style="color:#c0392b;font-weight:700;">━━</span> MIPSSTW + MCS</div>
-      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Composite DRL</div>
-      <div><span style="color:#1e8449;font-weight:700;">- - -</span> GBDT router</div>
-      <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Origin &nbsp;
+      <div><span style="color:#111;">- - -</span> Google Maps (civilian GPS)</div>
+      <div><span style="color:#7f8c8d;">╌ ╌</span> OpenStreetMap civilian route</div>
+      <div><span style="color:#c0392b;font-weight:700;">━━</span> Ambulance optimizer (search)</div>
+      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance learning route</div>
+      <div><span style="color:#1e8449;font-weight:700;">- - -</span> Ambulance ML time model</div>
+      <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
            <span style="color:#e67e22;">●</span> Destination</div>
+      <div style="margin-top:8px;font-size:12px;color:#444;">
+        For traffic/weather and roads civilians/Google Maps cannot use,
+        open <b>route_conditions_map.html</b>.
+      </div>
     </div>
     """
     m.get_root().html.add_child(Element(legend))
@@ -580,8 +619,8 @@ CONDITION_MAP_ODS = [
     MAP_SCENARIOS[4],  # Lower West → East Village
 ]
 
-# Hours precomputed for the time slider (every 2h keeps HTML + build fast)
-CONDITION_MAP_HOURS = list(range(0, 24, 2))
+# Hours precomputed for the time slider (every 2h + 17:00 rush)
+CONDITION_MAP_HOURS = sorted(set(list(range(0, 24, 2)) + [17]))
 CONDITION_MAP_WEATHERS = ["clear", "rain", "snow"]
 
 
@@ -668,8 +707,8 @@ def build_conditions_route_map(
         name="Esri streets",
     ).add_to(m)
 
-    # Permanent OD markers
-    markers_fg = folium.FeatureGroup(name="od_markers", show=True)
+    # Permanent OD markers (hidden from LayerControl — always on)
+    markers_fg = folium.FeatureGroup(name="Start & destination", show=True, control=False)
     markers_fg.add_to(m)
     for od in od_nodes:
         sc = od["sc"]
@@ -680,8 +719,8 @@ def build_conditions_route_map(
             fill=True,
             fill_color="#3498db",
             fill_opacity=0.95,
-            popup=f"<b>Origin</b><br>{sc['label']}",
-            tooltip=f"O: {sc['label']}",
+            popup=f"<b>Start</b><br>{sc['label']}",
+            tooltip=f"Start: {sc['label']}",
         ).add_to(markers_fg)
         folium.CircleMarker(
             od["d_ll"],
@@ -690,8 +729,8 @@ def build_conditions_route_map(
             fill=True,
             fill_color="#e67e22",
             fill_opacity=0.95,
-            popup=f"<b>Dest</b><br>{sc['label']}",
-            tooltip=f"D: {sc['label']}",
+            popup=f"<b>Destination</b><br>{sc['label']}",
+            tooltip=f"Destination: {sc['label']}",
         ).add_to(markers_fg)
 
     layer_js_names: dict[str, str] = {}
@@ -705,8 +744,8 @@ def build_conditions_route_map(
             key = f"{hour:02d}_{weather}"
             apply_routing_conditions(G, conditions=cond)
 
-            # show=False for all; JS will enable the default
-            fg = folium.FeatureGroup(name=f"state_{key}", show=False)
+            # show=False for all; JS will enable the default. Hide from LayerControl.
+            fg = folium.FeatureGroup(name=f"state_{key}", show=False, control=False)
             fg.add_to(m)
             layer_js_names[key] = fg.get_name()
 
@@ -742,6 +781,14 @@ def build_conditions_route_map(
                         emv_mins.append(mins)
                         corr_counts.append(n_corr)
 
+                    friendly = _map_model_label(name)
+                    if name == "civilian_gps":
+                        detail = f"{mins:.2f} min (civilian GPS cannot use ambulance-only roads)"
+                    else:
+                        detail = (
+                            f"{mins:.2f} min · uses {n_corr} ambulance-only road segment"
+                            f"{'s' if n_corr != 1 else ''}"
+                        )
                     folium.PolyLine(
                         coords,
                         color=color,
@@ -749,25 +796,27 @@ def build_conditions_route_map(
                         opacity=opacity,
                         dash_array=dash,
                         popup=(
-                            f"<b>{sc['label']}</b><br>{cond.label}<br>{name}<br>"
-                            f"{mins:.2f} min · EMV-only edges: {n_corr}"
+                            f"<b>{sc['label']}</b><br>"
+                            f"Conditions: {cond.label}<br>"
+                            f"{friendly}<br>{detail}"
                         ),
-                        tooltip=f"{cond.label}: {name} ({mins:.1f} min)",
+                        tooltip=f"{cond.label}: {friendly} ({mins:.1f} min)",
                     ).add_to(fg)
 
                     if name == "emv_row":
                         for seg in path_corridor_segments(G, result.node_path):
+                            kind_label = _corridor_kind_label(seg.get("kind"))
                             folium.PolyLine(
                                 seg["coords"],
                                 color="#f1c40f",
                                 weight=8,
                                 opacity=0.85,
                                 popup=(
-                                    f"<b>EMV-only ({seg['kind']})</b><br>"
+                                    f"<b>{kind_label}</b><br>"
                                     f"{sc['label']} · {cond.label}<br>"
-                                    "Civilian / Google Maps will not route here"
+                                    "Civilian GPS / Google Maps will not route here"
                                 ),
-                                tooltip=f"EMV-only: {seg['kind']}",
+                                tooltip=kind_label,
                             ).add_to(fg)
 
                     rows.append(
@@ -823,11 +872,11 @@ def build_conditions_route_map(
     <div id="emv-cond-panel" style="position:fixed;top:16px;left:16px;z-index:9999;
          background:rgba(255,255,255,0.97);padding:14px 16px;border:1px solid #888;
          border-radius:10px;font:13px/1.4 system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.18);
-         width:320px;max-width:92vw;">
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Time &amp; conditions</div>
+         width:340px;max-width:92vw;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Traffic &amp; weather routes</div>
       <div style="color:#555;margin-bottom:10px;font-size:12px;">
-        Drag the hour slider or pick weather — routes <b>replace</b> for that regime
-        (not model on/off toggles).
+        Move the hour slider or pick weather to <b>swap</b> the routes shown for that time
+        and condition (not layer on/off toggles).
       </div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;">
         <label for="emv-hour" style="font-weight:600;">Hour of day</label>
@@ -835,7 +884,7 @@ def build_conditions_route_map(
           {default_hour:02d}:00
         </span>
       </div>
-      <input id="emv-hour" type="range" min="0" max="23" step="2" value="{default_hour}"
+      <input id="emv-hour" type="range" min="0" max="23" step="1" value="{default_hour}"
              style="width:100%;margin:6px 0 12px 0;" />
       <div style="font-weight:600;margin-bottom:6px;">Weather</div>
       <div id="emv-wx-btns" style="display:flex;gap:6px;margin-bottom:12px;">
@@ -847,9 +896,11 @@ def build_conditions_route_map(
            font-size:12px;border:1px solid #dde2e8;"></div>
       <hr style="border:none;border-top:1px solid #ddd;margin:12px 0 8px;">
       <div style="font-size:12px;">
-        <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS</div>
-        <div><span style="color:#8e44ad;font-weight:700;">━━</span> EMV ROW route</div>
-        <div><span style="color:#f1c40f;font-weight:700;">━━</span> Google-untakeable segment</div>
+        <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS route</div>
+        <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance with right-of-way</div>
+        <div><span style="color:#f1c40f;font-weight:700;">━━</span> Road civilians/Google Maps cannot use</div>
+        <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
+             <span style="color:#e67e22;">●</span> Destination</div>
       </div>
     </div>
     <style>
@@ -923,13 +974,17 @@ def build_conditions_route_map(
         if (el) {{
           el.innerHTML =
             "<div style='font-weight:700;margin-bottom:4px;'>" + (st.label || key) + "</div>" +
-            "<div>Congestion ×" + (st.congestion != null ? st.congestion : "—") +
-            " · weather ×" + (st.wx_civ != null ? st.wx_civ : "—") + "</div>" +
-            "<div style='margin-top:4px;'>Civilian <b>" + (st.civ_min != null ? st.civ_min + " min" : "—") +
-            "</b> → EMV <b>" + (st.emv_min != null ? st.emv_min + " min" : "—") + "</b></div>" +
-            "<div>Saved <b>" + (st.saved_min != null ? st.saved_min + " min" : "—") +
+            "<div>Traffic slowdown <b>" + (st.congestion != null ? st.congestion + "×" : "—") +
+            "</b> · weather slowdown <b>" + (st.wx_civ != null ? st.wx_civ + "×" : "—") +
+            "</b> (civilian)</div>" +
+            "<div style='margin-top:4px;'>Civilian GPS <b>" +
+            (st.civ_min != null ? st.civ_min + " min" : "—") +
+            "</b> → Ambulance with right-of-way <b>" +
+            (st.emv_min != null ? st.emv_min + " min" : "—") + "</b></div>" +
+            "<div>Time saved <b>" +
+            (st.saved_min != null ? st.saved_min + " min" : "—") +
             "</b> (" + (st.pct_faster != null ? st.pct_faster + "%" : "—") +
-            ") · EMV-only edges ~" + (st.emv_only_edges || 0) + "</div>";
+            ") · ambulance-only segments ~" + (st.emv_only_edges || 0) + "</div>";
         }}
       }}
 

@@ -199,10 +199,10 @@ def build_row_wins_map(
         name="Esri streets",
     ).add_to(m)
 
-    civ_fg = folium.FeatureGroup(name="Civilian GPS", show=True)
-    emv_fg = folium.FeatureGroup(name="EMV ROW (faster)", show=True)
-    gold_fg = folium.FeatureGroup(name="EMV-only corridors used", show=True)
-    markers_fg = folium.FeatureGroup(name="Win cases", show=True)
+    civ_fg = folium.FeatureGroup(name="Civilian GPS route", show=True)
+    emv_fg = folium.FeatureGroup(name="Ambulance with right-of-way (faster)", show=True)
+    gold_fg = folium.FeatureGroup(name="Roads civilians/Google Maps cannot use", show=True)
+    markers_fg = folium.FeatureGroup(name="Example trips", show=True)
     for fg in (civ_fg, emv_fg, gold_fg, markers_fg):
         fg.add_to(m)
 
@@ -221,7 +221,7 @@ def build_row_wins_map(
 
         saved_m = w["saved_vs_civ_s"] / 60.0
         row_m = w["row_attrib_s"] / 60.0
-        title = f"Win {i+1}: {w.get('label') or w.get('trip_id')}"
+        title = f"Example {i+1}: {w.get('label') or w.get('trip_id')}"
 
         folium.CircleMarker(
             o_ll,
@@ -229,8 +229,8 @@ def build_row_wins_map(
             color="#1f4e79",
             fill=True,
             fill_color="#3498db",
-            popup=f"<b>{title}</b><br>Origin",
-            tooltip=f"O{i+1}",
+            popup=f"<b>{title}</b><br>Start",
+            tooltip=f"Start {i+1}",
         ).add_to(markers_fg)
         folium.CircleMarker(
             d_ll,
@@ -238,8 +238,8 @@ def build_row_wins_map(
             color="#b35900",
             fill=True,
             fill_color="#e67e22",
-            popup=f"<b>{title}</b><br>Dest",
-            tooltip=f"D{i+1}",
+            popup=f"<b>{title}</b><br>Destination",
+            tooltip=f"Destination {i+1}",
         ).add_to(markers_fg)
         folium.Marker(
             [(o_ll[0] + d_ll[0]) / 2, (o_ll[1] + d_ll[1]) / 2],
@@ -247,19 +247,20 @@ def build_row_wins_map(
                 html=(
                     f'<div style="font:11px/1.2 sans-serif;background:rgba(255,255,255,.94);'
                     f'padding:2px 6px;border:1px solid #888;border-radius:4px;white-space:nowrap;">'
-                    f"Win {i+1}: −{saved_m:.1f} min "
-                    f"(ROW {row_m:.1f})</div>"
+                    f"Ex. {i+1}: {saved_m:.1f} min faster "
+                    f"(right-of-way {row_m:.1f} min)</div>"
                 )
             ),
         ).add_to(markers_fg)
 
         popup = (
-            f"<b>{title}</b><br>{condition_label}<br>"
-            f"Civilian {w['civ_s']/60:.2f} min → EMV {w['emv_s']/60:.2f} min<br>"
-            f"Saved vs civilian: <b>{saved_m:.2f} min ({w['pct_vs_civ']:.1f}%)</b><br>"
-            f"Of which from EMV-only ROW: <b>{row_m:.2f} min</b><br>"
-            f"EMV-only edges used: {w['emv_only_edges']}<br>"
-            f"Without ROW privileges: {w['emv_no_row_s']/60:.2f} min"
+            f"<b>{title}</b><br>Conditions: {condition_label}<br>"
+            f"Civilian GPS: {w['civ_s']/60:.2f} min → "
+            f"Ambulance with right-of-way: {w['emv_s']/60:.2f} min<br>"
+            f"Faster by: <b>{saved_m:.2f} min ({w['pct_vs_civ']:.1f}%)</b><br>"
+            f"Of which from ambulance-only roads: <b>{row_m:.2f} min</b><br>"
+            f"Ambulance-only road segments used: {w['emv_only_edges']}<br>"
+            f"Same ambulance without those privileges: {w['emv_no_row_s']/60:.2f} min"
         )
         folium.PolyLine(
             civ_coords,
@@ -268,7 +269,7 @@ def build_row_wins_map(
             opacity=0.55,
             dash_array="10 8",
             popup=popup,
-            tooltip=f"Win {i+1} civilian ({w['civ_s']/60:.1f} min)",
+            tooltip=f"Example {i+1} civilian GPS ({w['civ_s']/60:.1f} min)",
         ).add_to(civ_fg)
         folium.PolyLine(
             emv_coords,
@@ -276,17 +277,26 @@ def build_row_wins_map(
             weight=6,
             opacity=0.95,
             popup=popup,
-            tooltip=f"Win {i+1} EMV ({w['emv_s']/60:.1f} min, −{saved_m:.1f})",
+            tooltip=(
+                f"Example {i+1} ambulance with right-of-way "
+                f"({w['emv_s']/60:.1f} min, {saved_m:.1f} min faster)"
+            ),
         ).add_to(emv_fg)
 
         for seg in path_corridor_segments(G, w["emv_path"]):
+            kind = seg.get("kind") or "emv_only"
+            kind_label = {
+                "contraflow": "Wrong-way lane (ambulance only)",
+                "busway": "Bus lane / busway (ambulance only)",
+                "restricted": "Restricted road (ambulance only)",
+            }.get(kind, f"Ambulance-only ({kind})")
             folium.PolyLine(
                 seg["coords"],
                 color="#f1c40f",
                 weight=9,
                 opacity=0.9,
-                popup=f"<b>EMV-only ({seg['kind']})</b><br>{title}",
-                tooltip=f"Win {i+1}: {seg['kind']}",
+                popup=f"<b>{kind_label}</b><br>{title}",
+                tooltip=f"Example {i+1}: {kind_label}",
             ).add_to(gold_fg)
 
     if bounds:
@@ -295,17 +305,20 @@ def build_row_wins_map(
     legend = f"""
     <div style="position:fixed;bottom:24px;left:24px;z-index:9999;background:rgba(255,255,255,0.97);
                 padding:12px 14px;border:1px solid #999;border-radius:8px;font:13px/1.45 sans-serif;
-                box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:340px;">
-      <div style="font-weight:700;margin-bottom:6px;">EMV ROW wins vs civilian GPS</div>
-      <div>Cases where EMV is faster <b>because</b> it uses Google-untakeable
-           corridors (contraflow / busway). {condition_label}.</div>
+                box-shadow:0 2px 8px rgba(0,0,0,.15);max-width:360px;">
+      <div style="font-weight:700;margin-bottom:6px;">When ambulance right-of-way beats civilian GPS</div>
+      <div>Real trip examples where the ambulance is faster <b>because</b> it uses roads
+           civilians and Google Maps cannot (wrong-way / bus lanes).
+           Conditions: {condition_label}.</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-      <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS</div>
-      <div><span style="color:#8e44ad;font-weight:700;">━━</span> EMV with ROW</div>
-      <div><span style="color:#f1c40f;font-weight:700;">━━</span> EMV-only segment used</div>
+      <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian GPS route</div>
+      <div><span style="color:#8e44ad;font-weight:700;">━━</span> Ambulance with right-of-way</div>
+      <div><span style="color:#f1c40f;font-weight:700;">━━</span> Road civilians/Google Maps cannot use</div>
+      <div style="margin-top:6px;"><span style="color:#3498db;">●</span> Start &nbsp;
+           <span style="color:#e67e22;">●</span> Destination</div>
       <div style="margin-top:6px;font-size:12px;color:#444;">
-        Label “ROW X min” = time saved attributable to those corridors
-        (EMV without privileges − EMV with privileges).
+        “Right-of-way X min” = minutes saved from those ambulance-only roads
+        (ambulance without privileges − ambulance with privileges).
       </div>
     </div>
     """
@@ -383,8 +396,13 @@ def main():
         label = None
         boro = getattr(rec, "borough_norm", None) or getattr(rec, "borough", None)
         z = getattr(rec, "zipcode", None)
-        if boro or z:
-            label = f"{boro or '?'} → ZIP {z or '?'}"
+        if boro or z is not None:
+            boro_s = str(boro).strip().title() if boro else "?"
+            try:
+                zip_s = str(int(float(z))) if z is not None and str(z).strip() else "?"
+            except (TypeError, ValueError):
+                zip_s = str(z).rstrip(".0") if z is not None else "?"
+            label = f"{boro_s} → ZIP {zip_s}"
         wins.append(
             {
                 **ev,
