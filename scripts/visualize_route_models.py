@@ -28,6 +28,7 @@ if Path(omp).exists():
 sns.set_theme(style="whitegrid", context="notebook")
 
 MODEL_ORDER = [
+    "control_google_maps",
     "control_civilian_time",
     "control_distance",
     "emv_dijkstra",
@@ -37,6 +38,7 @@ MODEL_ORDER = [
 ]
 MAIN_MODELS = {"mipsstw_mcs", "composite_drl", "gbdt_router"}
 MODEL_COLORS = {
+    "control_google_maps": "#111111",
     "control_distance": "#95a5a6",
     "control_civilian_time": "#7f8c8d",
     "emv_dijkstra": "#2980b9",
@@ -45,8 +47,9 @@ MODEL_COLORS = {
     "gbdt_router": "#1e8449",
 }
 MODEL_LABELS = {
+    "control_google_maps": "Control\nGoogle Maps",
     "control_distance": "Control\nshortest dist.",
-    "control_civilian_time": "Control\ncivilian time",
+    "control_civilian_time": "Control\nOSM civilian",
     "emv_dijkstra": "EMV\nDijkstra",
     "mipsstw_mcs": "MIPSSTW\n+ MCS",
     "composite_drl": "Composite\nDRL",
@@ -92,8 +95,12 @@ def plot_travel_time_bars(df: pd.DataFrame, out: Path):
 
 def plot_main_models_focus(df: pd.DataFrame, out: Path):
     """Side-by-side: three main models vs civilian control only."""
-    keep = ["control_civilian_time", "mipsstw_mcs", "composite_drl", "gbdt_router"]
+    keep = ["control_google_maps", "control_civilian_time", "mipsstw_mcs", "composite_drl", "gbdt_router"]
     d = _ordered(df[df["model"].isin(keep)]).reset_index(drop=True)
+    # Prefer GMaps pct column when present
+    pct_col = "pct_vs_gmaps_control" if "pct_vs_gmaps_control" in d.columns else "pct_vs_civilian_control"
+    if pct_col not in d.columns:
+        d[pct_col] = 0.0
     fig, axes = plt.subplots(1, 2, figsize=(11.2, 5.0))
 
     labels = [MODEL_LABELS.get(m, m).replace("\n", " ") for m in d["model"]]
@@ -111,13 +118,13 @@ def plot_main_models_focus(df: pd.DataFrame, out: Path):
         axes[0].text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9,
                      fontweight="bold" if m == "composite_drl" else "normal")
 
-    pct = d["pct_vs_civilian_control"].fillna(0.0)
+    pct = d[pct_col].fillna(0.0)
     axes[1].bar(labels, pct, color=colors, edgecolor="white", width=0.7)
     axes[1].axhline(0, color="#333", lw=1)
     pad = max(0.5, float(np.nanmax(np.abs(pct))) * 0.35 + 0.3)
     axes[1].set_ylim(float(np.nanmin(pct)) - pad, float(np.nanmax(pct)) + pad)
-    axes[1].set_ylabel("% vs civilian (+ = faster)")
-    axes[1].set_title("Time vs civilian control")
+    axes[1].set_ylabel("% vs Google Maps (+ = faster)")
+    axes[1].set_title("Time vs Google Maps control")
     axes[1].tick_params(axis="x", rotation=12)
     for i, (v, m) in enumerate(zip(pct, d["model"])):
         axes[1].text(
@@ -296,6 +303,7 @@ def _offset_coords(coords, model_name: str, index: int):
         return coords
     offsets = {
         "control_civilian_time": 0.0,
+        "control_google_maps": 0.00002,
         "mipsstw_mcs": 0.00005,
         "composite_drl": -0.00005,
         "gbdt_router": 0.00009,
@@ -333,8 +341,10 @@ def build_multi_route_map(
         print("folium not installed; skipping map")
         return None
 
+    from emvro.gmaps import load_api_key_from_dotenv
     from emvro.routing import (
         control_civilian_time,
+        control_google_maps,
         nearest_node,
         prepare_routing_graph,
         solve_composite_drl,
@@ -343,6 +353,7 @@ def build_multi_route_map(
     )
     from emvro.routing.gbdt_router import build_edge_training_frame, train_gbdt_edge_model
 
+    load_api_key_from_dotenv(ROOT / ".env")
     scenarios = (scenarios or MAP_SCENARIOS)[:n_scenarios]
     print(f"Building multi-route map for {len(scenarios)} OD scenarios…")
     G = prepare_routing_graph(graph_path, hour=hour)
@@ -357,7 +368,8 @@ def build_multi_route_map(
     ).add_to(m)
 
     model_layers = {
-        "control_civilian_time": folium.FeatureGroup(name="Control: civilian time", show=True),
+        "control_google_maps": folium.FeatureGroup(name="Control: Google Maps", show=True),
+        "control_civilian_time": folium.FeatureGroup(name="Control: OSM civilian", show=False),
         "mipsstw_mcs": folium.FeatureGroup(name="MIPSSTW + MCS", show=True),
         "composite_drl": folium.FeatureGroup(name="Composite DRL", show=True),
         "gbdt_router": folium.FeatureGroup(name="GBDT router", show=True),
@@ -369,7 +381,8 @@ def build_multi_route_map(
     trip_rows = []
 
     map_models = [
-        ("control_civilian_time", dict(weight=3, opacity=0.45, dash="8 6")),
+        ("control_google_maps", dict(weight=4, opacity=0.7, dash="2 6")),
+        ("control_civilian_time", dict(weight=3, opacity=0.35, dash="8 6")),
         ("mipsstw_mcs", dict(weight=6, opacity=0.9, dash=None)),
         ("composite_drl", dict(weight=6, opacity=0.95, dash=None)),
         ("gbdt_router", dict(weight=5, opacity=0.85, dash="2 8")),
@@ -391,6 +404,13 @@ def build_multi_route_map(
         trip_fg.add_to(m)
 
         solved = {
+            "control_google_maps": control_google_maps(
+                o["lat"],
+                o["lon"],
+                d["lat"],
+                d["lon"],
+                cache_path=ROOT / "data" / "processed" / "gmaps_cache.json",
+            ),
             "control_civilian_time": control_civilian_time(G, origin, dest),
             "mipsstw_mcs": solve_mipsstw_mcs(
                 G, origin, dest, n_iterations=10, n_nests=8, seed=42 + i
@@ -435,34 +455,40 @@ def build_multi_route_map(
             result = solved[name]
             if not result.ok:
                 continue
-            if not result.node_path or result.node_path[0] != origin or result.node_path[-1] != dest:
-                print(f"  warn: {name} on {sc['id']} incomplete — forcing full-graph repair")
-                from emvro.routing.composite_drl import annotate_composite_weights
-                import networkx as nx
 
-                annotate_composite_weights(G)
-                try:
-                    result.node_path = list(
-                        nx.shortest_path(G, origin, dest, weight="weight_composite")
-                    )
-                    from emvro.routing.graph import path_stats
+            if name == "control_google_maps":
+                coords = list(result.meta.get("polyline_latlons") or [])
+                if len(coords) < 2:
+                    continue
+            else:
+                if not result.node_path or result.node_path[0] != origin or result.node_path[-1] != dest:
+                    print(f"  warn: {name} on {sc['id']} incomplete — forcing full-graph repair")
+                    from emvro.routing.composite_drl import annotate_composite_weights
+                    import networkx as nx
 
-                    t, dist, n_e = path_stats(G, result.node_path)
-                    result.travel_seconds, result.distance_m, result.n_edges = t, dist, n_e
-                except Exception as exc:  # noqa: BLE001
-                    print(f"  skip draw {name}/{sc['id']}: {exc}")
+                    annotate_composite_weights(G)
+                    try:
+                        result.node_path = list(
+                            nx.shortest_path(G, origin, dest, weight="weight_composite")
+                        )
+                        from emvro.routing.graph import path_stats
+
+                        t, dist, n_e = path_stats(G, result.node_path)
+                        result.travel_seconds, result.distance_m, result.n_edges = t, dist, n_e
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"  skip draw {name}/{sc['id']}: {exc}")
+                        continue
+                coords = _path_latlons(G, result.node_path)
+                if len(coords) < 2:
                     continue
 
-            coords = _path_latlons(G, result.node_path)
-            if len(coords) < 2:
-                continue
             # Pin ends exactly to OD markers, offset only the middle
             coords = _offset_coords(coords, name, i)
             coords[0] = list(o_ll)
             coords[-1] = list(d_ll)
             all_bounds.extend(coords)
             mins = result.travel_seconds / 60.0
-            km = result.distance_m / 1000.0
+            km = (result.distance_m or 0) / 1000.0
 
             popup = (
                 f"<b>Trip {i+1}: {sc['label']}</b><br>"
@@ -529,7 +555,8 @@ def build_multi_route_map(
       <div>Toggle <b>Trip N</b> or model layers. For traffic/weather + Google-untakeable
            EMV corridors, open <b>route_conditions_map.html</b>.</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-      <div><span style="color:#7f8c8d;">╌ ╌</span> Civilian control</div>
+      <div><span style="color:#111;">- - -</span> Google Maps control</div>
+      <div><span style="color:#7f8c8d;">╌ ╌</span> OSM civilian</div>
       <div><span style="color:#c0392b;font-weight:700;">━━</span> MIPSSTW + MCS</div>
       <div><span style="color:#8e44ad;font-weight:700;">━━</span> Composite DRL</div>
       <div><span style="color:#1e8449;font-weight:700;">- - -</span> GBDT router</div>
@@ -956,8 +983,10 @@ def build_folium_paths(payload: dict, graph_path: Path, out: Path, routes: dict)
 
 
 def _run_all_routes(payload: dict, graph_path: Path):
+    from emvro.gmaps import load_api_key_from_dotenv
     from emvro.routing import (
         control_civilian_time,
+        control_google_maps,
         control_shortest_distance,
         nearest_node,
         prepare_routing_graph,
@@ -968,6 +997,7 @@ def _run_all_routes(payload: dict, graph_path: Path):
     from emvro.routing.graph import dijkstra_route
     from emvro.routing.gbdt_router import build_edge_training_frame, train_gbdt_edge_model
 
+    load_api_key_from_dotenv(ROOT / ".env")
     G = prepare_routing_graph(graph_path, hour=int(payload.get("hour") or 12))
     o, d = payload["origin"], payload["dest"]
     origin = nearest_node(G, o["lon"], o["lat"])
@@ -978,8 +1008,17 @@ def _run_all_routes(payload: dict, graph_path: Path):
     edge_df = build_edge_training_frame(G, hours=[hour], max_edges=5000)
     bundle = train_gbdt_edge_model(edge_df)
 
+    gmaps = control_google_maps(
+        float(o["lat"]),
+        float(o["lon"]),
+        float(d["lat"]),
+        float(d["lon"]),
+        cache_path=ROOT / "data" / "processed" / "gmaps_cache.json",
+    )
+
     routes = {
         "_G": G,
+        "control_google_maps": gmaps,
         "control_civilian_time": control_civilian_time(G, origin, dest),
         "control_distance": control_shortest_distance(G, origin, dest),
         "emv_dijkstra": dijkstra_route(G, origin, dest, weight="weight_emv", model_name="emv_dijkstra"),
@@ -1024,9 +1063,13 @@ def main():
         }
 
     routes = _run_all_routes(payload, args.graph)
-    control_t = routes["control_civilian_time"].travel_seconds
+    control_t = routes["control_google_maps"].travel_seconds
+    if control_t != control_t or not routes["control_google_maps"].ok:
+        control_t = routes["control_civilian_time"].travel_seconds
     rows = []
     for name in MODEL_ORDER:
+        if name not in routes:
+            continue
         r = routes[name]
         t = r.travel_seconds
         rows.append(
@@ -1037,10 +1080,13 @@ def main():
                 "travel_minutes": None if t != t else round(float(t) / 60.0, 2),
                 "distance_km": None if r.distance_m != r.distance_m else round(r.distance_m / 1000.0, 3),
                 "n_edges": r.n_edges,
+                "pct_vs_gmaps_control": None
+                if not (control_t == control_t and t == t and control_t > 0)
+                else round(100.0 * (1.0 - float(t) / control_t), 2),
                 "pct_vs_civilian_control": None
                 if not (control_t == control_t and t == t and control_t > 0)
                 else round(100.0 * (1.0 - float(t) / control_t), 2),
-                "meta": {k: v for k, v in r.meta.items() if k not in {"train_curve", "fitness_history"}},
+                "meta": {k: v for k, v in r.meta.items() if k not in {"train_curve", "fitness_history", "polyline_latlons"}},
             }
         )
     payload["results"] = rows

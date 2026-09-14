@@ -24,6 +24,12 @@ class RouteResult:
 
     @property
     def ok(self) -> bool:
+        # Google Maps control stores a lat/lon polyline, not OSM nodes.
+        if self.model == "control_google_maps":
+            return (
+                self.travel_seconds == self.travel_seconds
+                and float(self.travel_seconds) > 0
+            )
         return bool(self.node_path) and len(self.node_path) >= 2
 
 
@@ -201,11 +207,73 @@ def control_shortest_distance(G, origin, dest) -> RouteResult:
 
 
 def control_civilian_time(G, origin, dest) -> RouteResult:
-    """Civilian-style control: minimize congested travel_time."""
+    """Civilian-style control: minimize congested travel_time (OSM prior)."""
     # Temporarily expose civilian weight
     for _, _, _, data in G.edges(keys=True, data=True):
         data["weight_civilian"] = float(data.get("civilian_s") or data.get("travel_time") or 1.0)
     return dijkstra_route(G, origin, dest, weight="weight_civilian", model_name="control_civilian_time")
+
+
+def control_google_maps(
+    origin_lat: float,
+    origin_lon: float,
+    dest_lat: float,
+    dest_lon: float,
+    *,
+    departure_time: str | int | None = "now",
+    cache_path: Path | str | None = None,
+    include_polyline: bool = True,
+) -> RouteResult:
+    """
+    Primary civilian control: Google Maps Directions (traffic-aware when available).
+
+    This is the phone-GPS baseline used against EMV routers on the slides.
+    """
+    from ..gmaps import GoogleMapsControl
+
+    gmaps = GoogleMapsControl(cache_path=cache_path)
+    if not gmaps.available:
+        return RouteResult(
+            "control_google_maps",
+            [],
+            np.nan,
+            np.nan,
+            0,
+            meta={"error": "missing_api_key"},
+        )
+    r = gmaps.driving_seconds(
+        origin_lat,
+        origin_lon,
+        dest_lat,
+        dest_lon,
+        departure_time=departure_time,
+        include_polyline=include_polyline,
+    )
+    if not r.get("ok"):
+        return RouteResult(
+            "control_google_maps",
+            [],
+            np.nan,
+            np.nan,
+            0,
+            meta={k: r.get(k) for k in ("error", "status", "message")},
+        )
+    secs = r.get("duration_in_traffic_s") or r.get("duration_s")
+    poly = r.get("polyline_latlons") or []
+    return RouteResult(
+        "control_google_maps",
+        [],  # Google path is continuous lat/lon, not OSM nodes
+        float(secs),
+        float(r.get("distance_m") or np.nan),
+        max(0, len(poly) - 1),
+        meta={
+            "duration_s": r.get("duration_s"),
+            "duration_in_traffic_s": r.get("duration_in_traffic_s"),
+            "polyline_latlons": poly,
+            "cached": r.get("cached", False),
+            "source": "google_maps_directions",
+        },
+    )
 
 
 def reconstruct_path_from_parents(parents: dict, origin, dest) -> list:

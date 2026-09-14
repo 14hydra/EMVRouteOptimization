@@ -38,13 +38,20 @@ def main():
     p.add_argument(
         "--data",
         type=Path,
-        default=ROOT / "data" / "processed" / "route_eta_training.csv",
+        default=None,
+        help="Training CSV (defaults to route_eta_gmaps_training.csv if present)",
     )
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "processed" / "models")
     p.add_argument("--test-size", type=float, default=0.2)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--target-r2", type=float, default=0.8)
     args = p.parse_args()
+
+    if args.data is None:
+        gmaps_data = ROOT / "data" / "processed" / "route_eta_gmaps_training.csv"
+        legacy = ROOT / "data" / "processed" / "route_eta_training.csv"
+        args.data = gmaps_data if gmaps_data.exists() else legacy
+    print("Training on", args.data)
 
     df = pd.read_csv(args.data, low_memory=False)
     X, y, cat_cols = prepare_route_eta_matrix(df)

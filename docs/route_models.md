@@ -43,6 +43,8 @@ Figures land in `data/figures/route_models/`:
 - `route_models_map.html` — **multiple OD trips** across NYC; toggle models in the layer control
 - `route_conditions_map.html` — **time slider + weather buttons** swap the full route set
   (civilian vs EMV) for that hour/weather; gold = Google-untakeable EMV corridors
+- `row_wins_map.html` — **verified EMV ROW wins**: OD cases where EMV beats civilian GPS
+  *because* of Google-untakeable corridors (contraflow/busway); see `row_wins.csv`
 - `multi_route_times.csv` — per-trip travel times for the map scenarios
 
 ## Traffic & weather conditions (ASI eval variables)

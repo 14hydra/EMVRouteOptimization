@@ -31,13 +31,21 @@ only using crow-flies hybrid heuristics.
 
 ## Setup
 
-1. Google Cloud project → enable **Directions API**  
-2. Create an API key  
-3. Export it (do not commit the key):
+1. Google Cloud project → enable **Routes API** (required; legacy Directions is often blocked on new keys)  
+   https://console.developers.google.com/apis/api/routes.googleapis.com/overview  
+2. Create an API key restricted to Routes API  
+3. Put it in a **gitignored** `.env` (never commit the key):
+
+```bash
+cp .env.example .env
+# edit .env:
+GOOGLE_MAPS_API_KEY=your_key_here
+```
+
+Or export it:
 
 ```bash
 export GOOGLE_MAPS_API_KEY=your_key_here
-# or copy .env.example → .env and load it yourself
 ```
 
 ## Run
@@ -53,6 +61,20 @@ Outputs:
 - `data/processed/origin_class_gmaps_summary.json`
 - `data/samples/origin_class_gmaps_sample.csv`
 - `data/processed/gmaps_cache.json` (cached Directions responses)
+
+## Training enrichment
+
+```bash
+# Attach Google Maps civilian ETAs to CAD + route-ETA tables, remap route-ETA labels
+PYTHONPATH=src python scripts/enrich_training_with_gmaps.py --limit 600 --remap-route-eta-labels
+PYTHONPATH=src python scripts/train_route_eta_model.py
+```
+
+Route models use **Google Maps as the primary civilian control**:
+
+```bash
+PYTHONPATH=src python scripts/run_route_models.py
+```
 
 ## Tunables
 

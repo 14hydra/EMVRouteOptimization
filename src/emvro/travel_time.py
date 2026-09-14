@@ -297,6 +297,11 @@ FEATURE_COLUMNS = [
     # OSM path aggregates (LION swap-in later)
     "osm_path_km",
     "osm_n_edges",
+    "gmaps_duration_s",
+    "gmaps_traffic_s",
+    "gmaps_distance_m",
+    "gmaps_vs_osm_ratio",
+    "gmaps_ok",
     "osm_n_nodes",
     "osm_mean_speed_kmh",
     "osm_min_speed_kmh",

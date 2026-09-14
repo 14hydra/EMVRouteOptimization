@@ -60,9 +60,10 @@ PYTHONPATH=src python scripts/visualize_data.py
 
 # Travel-time model (slides Step 4) — ambulances only
 PYTHONPATH=src python scripts/build_osm_graph.py   # once
-# Route ETA model (known OD → R² ≥ 0.8 for optimizers)
-PYTHONPATH=src python scripts/build_route_eta_training_set.py --n-pairs 9000
+# Enrich training with Google Maps civilian ETAs, then retrain
+PYTHONPATH=src python scripts/enrich_training_with_gmaps.py --limit 600 --remap-route-eta-labels
 PYTHONPATH=src python scripts/train_route_eta_model.py
+PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
 # CAD context model (real EMS labels; R² noise-limited ≈ 0.2)
 PYTHONPATH=src python scripts/build_travel_time_training_set.py
 PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full

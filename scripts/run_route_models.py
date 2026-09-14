@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-First-draft demo of the 3 slide route-optimization models vs control.
+Demo of the 3 slide route-optimization models vs Google Maps control.
 
   MODEL 1: MIPSSTW + MCS
   MODEL 2: Composite DRL
   MODEL 3: GBDT (LightGBM) edge-cost router
-  CONTROL: shortest distance / civilian time Dijkstra
+  CONTROL: Google Maps (primary) + OSM civilian time (secondary)
 
 Example:
   PYTHONPATH=src python scripts/run_route_models.py \\
@@ -30,8 +30,10 @@ omp = "/opt/homebrew/opt/libomp/lib"
 if Path(omp).exists():
     os.environ["DYLD_LIBRARY_PATH"] = omp + ":" + os.environ.get("DYLD_LIBRARY_PATH", "")
 
+from emvro.gmaps import load_api_key_from_dotenv  # noqa: E402
 from emvro.routing import (  # noqa: E402
     control_civilian_time,
+    control_google_maps,
     control_shortest_distance,
     nearest_node,
     prepare_routing_graph,
@@ -40,6 +42,7 @@ from emvro.routing import (  # noqa: E402
     solve_mipsstw_mcs,
 )
 from emvro.routing.gbdt_router import build_edge_training_frame, train_gbdt_edge_model  # noqa: E402
+from emvro.routing.graph import dijkstra_route  # noqa: E402
 
 
 def main():
@@ -56,6 +59,8 @@ def main():
     p.add_argument("--out", type=Path, default=ROOT / "data" / "processed" / "route_models_demo.json")
     args = p.parse_args()
 
+    load_api_key_from_dotenv(ROOT / ".env")
+
     if not args.graph.exists():
         raise SystemExit(f"Missing graph {args.graph}; run scripts/build_osm_graph.py first")
 
@@ -64,10 +69,6 @@ def main():
     origin = nearest_node(G, args.origin_lon, args.origin_lat)
     dest = nearest_node(G, args.dest_lon, args.dest_lat)
     print(f"OD nodes: {origin} → {dest} (hour={args.hour})")
-
-    # Optional soft deadline = 1.1 × EMV Dijkstra time
-    emv_base = control_civilian_time(G, origin, dest)  # placeholder warm-up
-    from emvro.routing.graph import dijkstra_route
 
     emv_dij = dijkstra_route(G, origin, dest, weight="weight_emv", model_name="emv_dijkstra")
     deadline = args.deadline_s
@@ -80,10 +81,20 @@ def main():
         edge_df, out_path=ROOT / "data" / "processed" / "models" / "gbdt_edge_costs.joblib"
     )
 
+    print("Querying Google Maps control…")
+    gmaps_ctrl = control_google_maps(
+        args.origin_lat,
+        args.origin_lon,
+        args.dest_lat,
+        args.dest_lon,
+        cache_path=ROOT / "data" / "processed" / "gmaps_cache.json",
+    )
+
     print("Running models…")
     results = {
-        "control_distance": control_shortest_distance(G, origin, dest),
+        "control_google_maps": gmaps_ctrl,
         "control_civilian_time": control_civilian_time(G, origin, dest),
+        "control_distance": control_shortest_distance(G, origin, dest),
         "emv_dijkstra": emv_dij,
         "mipsstw_mcs": solve_mipsstw_mcs(
             G,
@@ -111,16 +122,27 @@ def main():
                 else round(r.travel_seconds / 60.0, 2),
                 "distance_km": None if r.distance_m != r.distance_m else round(r.distance_m / 1000.0, 3),
                 "n_edges": r.n_edges,
-                "meta": {k: v for k, v in r.meta.items() if k != "fitness_history" or name == "mipsstw_mcs"},
+                "meta": {
+                    k: v
+                    for k, v in r.meta.items()
+                    if k not in {"fitness_history", "train_curve", "polyline_latlons"}
+                },
             }
         )
 
-    control_t = results["control_civilian_time"].travel_seconds
+    control_t = results["control_google_maps"].travel_seconds
+    control_name = "control_google_maps"
+    if control_t != control_t or not results["control_google_maps"].ok:
+        control_t = results["control_civilian_time"].travel_seconds
+        control_name = "control_civilian_time"
+
     for row in rows:
         t = row["travel_seconds"]
         if control_t == control_t and t is not None and control_t > 0:
-            row["pct_vs_civilian_control"] = round(100.0 * (1.0 - t / control_t), 2)
+            row["pct_vs_gmaps_control"] = round(100.0 * (1.0 - t / control_t), 2)
+            row["pct_vs_civilian_control"] = row["pct_vs_gmaps_control"]
         else:
+            row["pct_vs_gmaps_control"] = None
             row["pct_vs_civilian_control"] = None
 
     payload = {
@@ -128,19 +150,20 @@ def main():
         "dest": {"lat": args.dest_lat, "lon": args.dest_lon, "node": int(dest)},
         "hour": args.hour,
         "deadline_s": deadline,
+        "primary_control": control_name,
         "results": rows,
         "note": (
-            "First draft of slides Step 3 models. "
-            "MIPSSTW+MCS = soft time-window metaheuristic; "
-            "Composite DRL = tabular Q-learning with EMV street bonuses; "
-            "GBDT = LightGBM edge costs + Dijkstra."
+            "Primary civilian control = Google Maps Directions (traffic-aware). "
+            "OSM civilian time kept as secondary baseline. "
+            "EMV models optimize ROW-aware edge costs (contraflow / busway)."
         ),
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(payload, indent=2) + "\n")
 
     df = pd.DataFrame(rows)
-    print(df[["model", "travel_minutes", "distance_km", "n_edges", "pct_vs_civilian_control"]].to_string(index=False))
+    print(df[["model", "travel_minutes", "distance_km", "n_edges", "pct_vs_gmaps_control"]].to_string(index=False))
+    print("Primary control:", control_name)
     print("Wrote", args.out)
 
 
