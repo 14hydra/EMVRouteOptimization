@@ -202,6 +202,9 @@ def build_master_map(
     city_layers: dict[str, list[str]] = {c["id"]: [] for c in configs}
     city_views = {c["id"]: {"center": c["center"], "zoom": c["zoom"]} for c in configs}
     example_best_rows: list[dict] = []
+    # Example route polylines live in one holder; trip/model FeatureGroups are
+    # checkboxes only. Visibility = trip ON ∧ model ON (no duplicate parents).
+    example_route_registry: list[dict] = []
     stats_bits: list[str] = []
 
     def _fg(name: str, show: bool = False, *, city_id: str | None = None, kind: str | None = None):
@@ -213,6 +216,10 @@ def build_master_map(
         if kind and kind in layer_sets:
             layer_sets[kind].append(name)
         return fg
+
+    # Hidden holder for all example polylines (not in LayerControl)
+    example_route_holder = folium.FeatureGroup(name="_example_routes_holder", show=True, control=False)
+    example_route_holder.add_to(m)
 
     emv_model_names = ("mipsstw_mcs", "composite_drl", "gbdt_router")
     map_models = [
@@ -542,30 +549,67 @@ def build_master_map(
                     f"{map_label(name)}{role}<br>{mins:.2f} min · {km:.2f} km"
                 )
                 tip = f"{clabel} Ex {i+1}: {map_label(name)} ({mins:.1f} min){role}"
-                weight = style["weight"] + (4 if is_best else 0)
-                opacity = 0.98 if is_best else style["opacity"]
-                for parent in (ex_models[name], trip_fg):
-                    folium.PolyLine(
-                        coords,
-                        color=MODEL_COLORS.get(name, "#333"),
-                        weight=weight,
-                        opacity=opacity,
-                        dash_array=None if is_best else style["dash"],
-                        popup=popup,
-                        tooltip=tip,
-                    ).add_to(parent)
+                # Single parent only (holder). Trip/model layers are checkboxes;
+                # JS shows a route only when BOTH its trip and model are enabled.
+                pl = folium.PolyLine(
+                    coords,
+                    color=MODEL_COLORS.get(name, "#333"),
+                    weight=style["weight"] + (2 if is_best else 0),
+                    opacity=0.95 if is_best else style["opacity"],
+                    dash_array=None if is_best else style["dash"],
+                    popup=popup,
+                    tooltip=tip,
+                )
+                pl.add_to(example_route_holder)
+                example_route_registry.append(
+                    {
+                        "layer": pl.get_name(),
+                        "city": cid,
+                        "trip": i + 1,
+                        "trip_layer": f"{clabel} · Examples · Trip {i+1}: {sc['label']}",
+                        "model": name,
+                        "model_layer": f"{clabel} · Examples · "
+                        + {
+                            "control_google_maps": "Google Maps",
+                            "control_civilian_time": "OSM civilian GPS",
+                            "mipsstw_mcs": "MIPSSTW + MCS",
+                            "composite_drl": "Composite DRL",
+                            "gbdt_router": "GBDT router",
+                        }[name],
+                    }
+                )
                 if is_best:
-                    folium.PolyLine(coords, color="#ffffff", weight=12, opacity=0.85).add_to(
-                        best_fg
+                    halo = folium.PolyLine(coords, color="#ffffff", weight=12, opacity=0.85)
+                    halo.add_to(example_route_holder)
+                    example_route_registry.append(
+                        {
+                            "layer": halo.get_name(),
+                            "city": cid,
+                            "trip": i + 1,
+                            "trip_layer": f"{clabel} · Examples · Trip {i+1}: {sc['label']}",
+                            "model": "best_emv",
+                            "model_layer": f"{clabel} · Examples · Best EMV route",
+                        }
                     )
-                    folium.PolyLine(
+                    hi = folium.PolyLine(
                         coords,
                         color=MODEL_COLORS.get(name, "#8e44ad"),
                         weight=7,
                         opacity=1.0,
                         popup=popup,
                         tooltip=f"BEST · {tip}",
-                    ).add_to(best_fg)
+                    )
+                    hi.add_to(example_route_holder)
+                    example_route_registry.append(
+                        {
+                            "layer": hi.get_name(),
+                            "city": cid,
+                            "trip": i + 1,
+                            "trip_layer": f"{clabel} · Examples · Trip {i+1}: {sc['label']}",
+                            "model": "best_emv",
+                            "model_layer": f"{clabel} · Examples · Best EMV route",
+                        }
+                    )
             print(f"  example {sc['id']} best={best_name}")
 
         # ---- ROW wins ----
@@ -811,6 +855,8 @@ def build_master_map(
       var LAYERS = {json.dumps(layer_js)};
       var DEFAULT_ON = {json.dumps(default_on)};
       var CITY_IDS = {json.dumps(city_ids)};
+      var ROUTE_REGISTRY = {json.dumps(example_route_registry)};
+      var ROUTE_HOLDER = {json.dumps(example_route_holder.get_name())};
       var city = CITY_IDS[0] || "nyc";
       var mode = "examples";
       var mapRef = null;
@@ -835,6 +881,38 @@ def build_master_map(
           if (!lyr) return;
           if (on) {{ if (!map.hasLayer(lyr)) map.addLayer(lyr); }}
           else {{ if (map.hasLayer(lyr)) map.removeLayer(lyr); }}
+        }});
+      }}
+
+      function isLayerOn(name) {{
+        var map = findMap();
+        var lyr = layerObj(LAYERS[name]);
+        return !!(map && lyr && map.hasLayer(lyr));
+      }}
+
+      // Example polylines are single-parented under ROUTE_HOLDER. A route is
+      // visible only when its trip layer AND model layer are both checked.
+      function syncExampleRoutes() {{
+        var map = findMap();
+        if (!map) return;
+        var holder = layerObj(ROUTE_HOLDER);
+        if (holder && !map.hasLayer(holder)) map.addLayer(holder);
+        var examplesMode = (mode === "examples" || mode === "all");
+        ROUTE_REGISTRY.forEach(function(r) {{
+          var lyr = layerObj(r.layer);
+          if (!lyr) return;
+          var cityOk = (city === "both" || city === r.city);
+          var on = examplesMode && cityOk && isLayerOn(r.trip_layer) && isLayerOn(r.model_layer);
+          if (holder) {{
+            if (on) {{
+              if (!holder.hasLayer(lyr)) holder.addLayer(lyr);
+            }} else {{
+              if (holder.hasLayer(lyr)) holder.removeLayer(lyr);
+            }}
+          }} else {{
+            if (on) {{ if (!map.hasLayer(lyr)) map.addLayer(lyr); }}
+            else {{ if (map.hasLayer(lyr)) map.removeLayer(lyr); }}
+          }}
         }});
       }}
 
@@ -891,6 +969,7 @@ def build_master_map(
           btn.classList.toggle("active", btn.getAttribute("data-mode") === mode);
         }});
         flyCity();
+        syncExampleRoutes();
       }}
 
       function bind() {{
@@ -906,6 +985,12 @@ def build_master_map(
             apply();
           }});
         }});
+        var map = findMap();
+        if (map) {{
+          map.on("overlayadd overlayremove", function() {{
+            setTimeout(syncExampleRoutes, 0);
+          }});
+        }}
         // Start from declared defaults then sync via apply()
         setVisible(allNamed(), false);
         setVisible(DEFAULT_ON, true);
