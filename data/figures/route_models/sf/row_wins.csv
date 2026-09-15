@@ -1,0 +1,9 @@
+rank,trip_id,label,borough,zipcode,civ_min,emv_min,emv_no_row_min,saved_vs_civ_min,pct_vs_civ,row_attrib_min,emv_only_edges,start_lat,start_lon,dest_lat,dest_lon,hour,weather
+1,26126713,South Of Market → ZIP 94103,South of Market,94103.0,9.82,6.03,9.39,3.78,38.54,3.36,21,37.76,-122.435,37.775231052,-122.405847485,17,rain
+2,26125535,Treasure Island → ZIP 94130,Treasure Island,94130.0,16.72,13.55,16.62,3.17,18.94,3.06,12,37.7955,-122.3977,37.829616622,-122.373177872,17,rain
+3,26128497,Potrero Hill → ZIP 94107,Potrero Hill,94107.0,6.53,4.7,6.53,1.83,28.0,1.83,6,37.78,-122.4,37.757120851,-122.401832507,17,rain
+4,26128832,South Of Market → ZIP 94103,South of Market,94103.0,7.31,5.54,7.3,1.76,24.13,1.75,21,37.7955,-122.3977,37.778240884,-122.414143376,17,rain
+5,26129518,Mission → ZIP 94110,Mission,94110.0,6.67,5.07,6.67,1.61,24.08,1.61,1,37.78,-122.4,37.754362726,-122.405031988,17,rain
+6,26130319,Potrero Hill → ZIP 94107,Potrero Hill,94107.0,6.13,4.6,6.13,1.53,25.0,1.53,10,37.78,-122.4,37.752017895,-122.401364371,17,rain
+7,26128020,Mission → ZIP 94110,Mission,94110.0,4.24,2.25,3.75,1.99,46.84,1.49,15,37.7485,-122.418,37.751726209,-122.406219414,17,rain
+8,26125352,Financial District/South Beach → ZIP 94103,Financial District/South Beach,94103.0,4.71,3.27,4.71,1.44,30.65,1.44,17,37.8,-122.41,37.787641849,-122.4034308,17,rain

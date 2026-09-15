@@ -48,25 +48,42 @@ def main():
     args = p.parse_args()
 
     if args.data is None:
+        multi = ROOT / "data" / "processed" / "route_eta_multicity_training.csv"
         gmaps_data = ROOT / "data" / "processed" / "route_eta_gmaps_training.csv"
         legacy = ROOT / "data" / "processed" / "route_eta_training.csv"
-        args.data = gmaps_data if gmaps_data.exists() else legacy
+        if multi.exists():
+            args.data = multi
+        elif gmaps_data.exists():
+            args.data = gmaps_data
+        else:
+            args.data = legacy
     print("Training on", args.data)
 
     df = pd.read_csv(args.data, low_memory=False)
+    if "city" not in df.columns:
+        df["city"] = "nyc"
+
+    # Calibrate EMV speedup priors from any civilian proxy present (logged only;
+    # labels in the CSV are already materialized).
+    from emvro.route_eta import calibrate_speedup_from_ems  # noqa: WPS433
+
+    speedups = calibrate_speedup_from_ems(df)
+    print("Calibrated EMV speedup sample:", {h: round(speedups[h], 3) for h in (0, 8, 12, 17, 22)})
+
     X, y, cat_cols = prepare_route_eta_matrix(df)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=args.test_size, random_state=args.seed
     )
 
     model = lgb.LGBMRegressor(
-        n_estimators=800,
-        learning_rate=0.04,
-        num_leaves=96,
-        min_child_samples=15,
+        n_estimators=1200,
+        learning_rate=0.035,
+        num_leaves=112,
+        min_child_samples=12,
         subsample=0.85,
         colsample_bytree=0.85,
-        reg_lambda=0.5,
+        reg_lambda=0.6,
+        reg_alpha=0.05,
         random_state=args.seed,
     )
     model.fit(

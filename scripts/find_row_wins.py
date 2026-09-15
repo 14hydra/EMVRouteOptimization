@@ -145,23 +145,25 @@ def sample_od_candidates(od_path: Path, *, limit: int, seed: int) -> pd.DataFram
     )
     if boro_col:
         b = df[boro_col].astype(str).str.upper()
-        prefer = b.isin(["MANHATTAN", "BROOKLYN", "BRONX", "QUEENS"])
-        # Prefer Manhattan (dense one-ways) but keep others if needed
-        man = df[b == "MANHATTAN"]
-        if len(man) >= limit // 2:
-            rest = df[(b != "MANHATTAN") & prefer]
-            rng = np.random.default_rng(seed)
-            n_man = min(len(man), max(limit // 2, limit - len(rest)))
-            take_man = man.iloc[rng.choice(len(man), size=n_man, replace=False)]
-            n_rest = min(len(rest), limit - len(take_man))
-            take_rest = (
-                rest.iloc[rng.choice(len(rest), size=n_rest, replace=False)]
-                if n_rest > 0
-                else rest.iloc[0:0]
-            )
-            df = pd.concat([take_man, take_rest], ignore_index=True)
-        else:
-            df = df[prefer | b.isna()].copy()
+        nyc_names = {"MANHATTAN", "BROOKLYN", "BRONX", "QUEENS", "STATEN ISLAND"}
+        prefer = b.isin(nyc_names)
+        # Only apply NYC borough preference when those labels actually exist
+        if prefer.any():
+            man = df[b == "MANHATTAN"]
+            if len(man) >= limit // 2:
+                rest = df[(b != "MANHATTAN") & prefer]
+                rng = np.random.default_rng(seed)
+                n_man = min(len(man), max(limit // 2, limit - len(rest)))
+                take_man = man.iloc[rng.choice(len(man), size=n_man, replace=False)]
+                n_rest = min(len(rest), limit - len(take_man))
+                take_rest = (
+                    rest.iloc[rng.choice(len(rest), size=n_rest, replace=False)]
+                    if n_rest > 0
+                    else rest.iloc[0:0]
+                )
+                df = pd.concat([take_man, take_rest], ignore_index=True)
+            else:
+                df = df[prefer | b.isna()].copy()
     rng = np.random.default_rng(seed)
     if len(df) > limit:
         idx = rng.choice(len(df), size=limit, replace=False)

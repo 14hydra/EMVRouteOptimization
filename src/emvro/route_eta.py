@@ -121,14 +121,56 @@ def calibrate_speedup_from_ems(
     *,
     hour_col: str = "hour",
     travel_col: str = "travel_seconds",
+    civilian_col: str | None = None,
 ) -> dict[int, float]:
-    """Optional: nudge EMV speedups so hour medians track EMS medians vs a prior."""
-    # Keep priors; mild shrink toward EMS/civilian ratio if osm civilian proxy exists
+    """
+    Nudge EMV speedups so hour medians track EMS travel vs a civilian proxy.
+
+    Prefers ``gmaps_traffic_s``, then ``civilian_network_s``, as the civilian
+    baseline. Shrinks priors toward observed (civilian / EMS) ratios with a
+    robust clip so bad strata cannot explode the schedule.
+    """
     out = dict(_EMV_SPEEDUP)
     if hour_col not in ems_df.columns or travel_col not in ems_df.columns:
         return out
-    # Without matched civilian times per row, only keep prior schedule.
+
+    civ_col = civilian_col
+    if civ_col is None:
+        for c in ("gmaps_traffic_s", "gmaps_duration_s", "civilian_network_s"):
+            if c in ems_df.columns and ems_df[c].notna().sum() >= 30:
+                civ_col = c
+                break
+    if civ_col is None:
+        return out
+
+    tmp = ems_df[[hour_col, travel_col, civ_col]].copy()
+    tmp[hour_col] = pd.to_numeric(tmp[hour_col], errors="coerce")
+    tmp[travel_col] = pd.to_numeric(tmp[travel_col], errors="coerce")
+    tmp[civ_col] = pd.to_numeric(tmp[civ_col], errors="coerce")
+    tmp = tmp.dropna()
+    tmp = tmp[(tmp[travel_col] > 30) & (tmp[civ_col] > 30)]
+    if len(tmp) < 30:
+        return out
+
+    # observed speedup ≈ civilian_time / ems_travel_time
+    tmp["obs_speedup"] = tmp[civ_col] / tmp[travel_col]
+    for h, g in tmp.groupby(tmp[hour_col].astype(int) % 24):
+        if len(g) < 8:
+            continue
+        med = float(g["obs_speedup"].median())
+        if med != med or med <= 0:
+            continue
+        prior = float(out.get(int(h), 1.4))
+        # 40% pull toward data, hard clip to a sane EMV range
+        blended = 0.6 * prior + 0.4 * med
+        out[int(h)] = float(min(2.2, max(1.05, blended)))
     return out
+
+
+def apply_calibrated_speedups(speedups: dict[int, float]) -> None:
+    """Update module-level EMV speedup schedule used by emv_travel_seconds."""
+    global _EMV_SPEEDUP
+    _EMV_SPEEDUP = {int(k): float(v) for k, v in speedups.items()}
 
 
 ROUTE_ETA_FEATURE_COLUMNS = [
@@ -155,7 +197,7 @@ ROUTE_ETA_FEATURE_COLUMNS = [
     "wx_cloudcover",
 ] + [c for c in STREET_FEATURE_COLUMNS if c != "osm_route_ok"]
 
-ROUTE_ETA_CATEGORICAL = ["borough", "origin_layer"]
+ROUTE_ETA_CATEGORICAL = ["borough", "origin_layer", "city"]
 
 
 def build_route_eta_training_rows(

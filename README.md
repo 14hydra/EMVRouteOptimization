@@ -87,6 +87,25 @@ PYTHONPATH=src python scripts/run_route_models.py
 
 See `docs/route_models.md`. Figures: `data/figures/route_models/`.
 
+**Master map** (NYC + SF: dataset / examples / ROW wins):
+
+```bash
+PYTHONPATH=src python scripts/build_master_map.py
+# open data/figures/master_map.html
+# City buttons: NYC | SF | Both · Case buttons: Examples | Dataset | ROW wins
+```
+
+**Multi-city training data** (SF EMS CAD + NYC):
+
+```bash
+PYTHONPATH=src python scripts/ingest_sf_ems.py --limit 4000
+PYTHONPATH=src python scripts/build_multicity_route_eta.py
+PYTHONPATH=src python scripts/train_route_eta_model.py \
+  --data data/processed/route_eta_multicity_training.csv --target-r2 0.9
+```
+
+See `docs/multi_city_datasets.md`.
+
 Traffic × weather condition grid (ASI eval — clear / rush / rain / snow / night):
 
 ```bash

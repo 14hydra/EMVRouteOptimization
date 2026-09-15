@@ -44,10 +44,14 @@ def _try_import_ox():
         ) from exc
 
 
-def build_nyc_drive_graph(out_path: Path | str, *, network_type: str = "drive") -> Path:
-    """Download and cache an OSM drive graph covering NYC."""
+def build_drive_graph(
+    out_path: Path | str,
+    bbox: tuple[float, float, float, float],
+    *,
+    network_type: str = "drive",
+) -> Path:
+    """Download and cache an OSM drive graph for an arbitrary bbox (W,S,E,N)."""
     ox = _try_import_ox()
-    # Keep HTTP response cache under data/raw (gitignored), not repo-root ./cache
     cache_dir = Path(out_path).resolve().parent / "osmnx_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     ox.settings.use_cache = True
@@ -55,14 +59,18 @@ def build_nyc_drive_graph(out_path: Path | str, *, network_type: str = "drive") 
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    G = ox.graph_from_bbox(
-        bbox=NYC_BBOX,  # (left, bottom, right, top)
-        network_type=network_type,
-        simplify=True,
-    )
-    # Keep a projected copy helpful for length; osmnx stores length on edges in meters
+    G = ox.graph_from_bbox(bbox=bbox, network_type=network_type, simplify=True)
     ox.save_graphml(G, out_path)
     return out_path
+
+
+def build_nyc_drive_graph(out_path: Path | str, *, network_type: str = "drive") -> Path:
+    """Download and cache an OSM drive graph covering NYC."""
+    return build_drive_graph(out_path, NYC_BBOX, network_type=network_type)
+
+
+# San Francisco approx bbox (W, S, E, N)
+SF_BBOX = (-122.52, 37.70, -122.35, 37.84)
 
 
 def load_graph(path: Path | str):

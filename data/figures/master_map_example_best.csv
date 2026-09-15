@@ -1,0 +1,11 @@
+city,trip,label,best_model,best_label,best_min,gmaps_min,pct_faster_vs_gmaps
+NYC,1,Midtown → Civic Center,mipsstw_mcs,MIPSSTW + MCS,11.44,26.33,56.6
+NYC,2,Bronx EMS station → Harlem,mipsstw_mcs,MIPSSTW + MCS,5.68,12.47,54.5
+NYC,3,Brooklyn EMS station → Downtown Brooklyn,mipsstw_mcs,MIPSSTW + MCS,3.85,10.25,62.4
+NYC,4,Jackson Heights → Flushing,mipsstw_mcs,MIPSSTW + MCS,9.79,15.97,38.7
+NYC,5,Chelsea → East Village,mipsstw_mcs,MIPSSTW + MCS,8.61,18.15,52.6
+SF,1,Mission → Financial District,mipsstw_mcs,MIPSSTW + MCS,7.62,21.77,65.0
+SF,2,Sunset → Castro,mipsstw_mcs,MIPSSTW + MCS,11.83,18.68,36.7
+SF,3,Bayview → SOMA,mipsstw_mcs,MIPSSTW + MCS,8.05,18.88,57.4
+SF,4,Richmond → Union Square,mipsstw_mcs,MIPSSTW + MCS,11.21,20.22,44.6
+SF,5,Marina → Tenderloin,mipsstw_mcs,MIPSSTW + MCS,7.49,16.37,54.2

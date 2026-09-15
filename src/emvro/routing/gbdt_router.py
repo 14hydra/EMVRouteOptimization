@@ -26,9 +26,12 @@ EDGE_FEATURE_COLS = [
     "is_motorway",
     "is_residential",
     "has_bus_lane",
+    "is_emv_corridor",
+    "civilian_forbidden",
     "hour",
     "is_rush",
     "is_night",
+    "cong_prior",
 ]
 
 
@@ -40,6 +43,14 @@ def _highway_flags(hw) -> tuple[int, int, int]:
     is_motorway = int(hw in {"motorway", "motorway_link"})
     is_residential = int(hw in {"residential", "living_street", "unclassified", "tertiary", "tertiary_link"})
     return is_primary, is_motorway, is_residential
+
+
+def _cong_prior(hour: int) -> float:
+    if hour in (7, 8, 9, 16, 17, 18, 19):
+        return 1.45
+    if hour >= 22 or hour < 6:
+        return 1.05
+    return 1.20
 
 
 def edge_feature_row(data: dict, *, hour: int) -> dict[str, float]:
@@ -54,14 +65,23 @@ def edge_feature_row(data: dict, *, hour: int) -> dict[str, float]:
         "is_motorway": is_motorway,
         "is_residential": is_residential,
         "has_bus_lane": int(bool(data.get("busway") or data.get("lanes:bus"))),
+        "is_emv_corridor": int(bool(data.get("emv_corridor") or data.get("emv_corridor_kind"))),
+        "civilian_forbidden": int(bool(data.get("civilian_forbidden"))),
         "hour": float(hour),
         "is_rush": float(hour in (7, 8, 9, 16, 17, 18, 19)),
         "is_night": float(hour >= 22 or hour < 6),
+        "cong_prior": float(_cong_prior(hour)),
     }
 
 
-def build_edge_training_frame(G, *, hours: list[int] | None = None, max_edges: int = 20000, seed: int = 42) -> pd.DataFrame:
-    """Synthetic edge labels: EMV travel seconds already on the graph."""
+def build_edge_training_frame(
+    G,
+    *,
+    hours: list[int] | None = None,
+    max_edges: int = 20000,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Edge labels from graph EMV seconds, with hour/congestion modulation."""
     rng = np.random.default_rng(seed)
     hours = hours or [0, 6, 8, 12, 17, 21]
     edges = list(G.edges(keys=True, data=True))
@@ -74,16 +94,13 @@ def build_edge_training_frame(G, *, hours: list[int] | None = None, max_edges: i
         base = float(data.get("emv_s") or data.get("travel_time") or 0.0)
         if base <= 0:
             continue
+        # Corridor edges: EMVs are faster relative to the civilian clock
+        corridor_bonus = 0.88 if data.get("emv_corridor") or data.get("civilian_forbidden") else 1.0
         for hour in hours:
-            # Re-scale label mildly by hour so the booster has something to learn
-            if hour in (7, 8, 9, 16, 17, 18, 19):
-                y = base * 1.15
-            elif hour >= 22 or hour < 6:
-                y = base * 0.92
-            else:
-                y = base
+            cong = _cong_prior(hour)
+            y = base * cong * corridor_bonus
             feat = edge_feature_row(data, hour=hour)
-            feat["travel_seconds"] = y
+            feat["travel_seconds"] = float(y)
             rows.append(feat)
     return pd.DataFrame(rows)
 
@@ -97,11 +114,13 @@ def train_gbdt_edge_model(
     X = df[EDGE_FEATURE_COLS]
     y = df["travel_seconds"].astype(float)
     model = lgb.LGBMRegressor(
-        n_estimators=200,
-        learning_rate=0.08,
-        num_leaves=31,
-        subsample=0.9,
-        colsample_bytree=0.9,
+        n_estimators=400,
+        learning_rate=0.05,
+        num_leaves=48,
+        min_child_samples=20,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        reg_lambda=0.8,
         random_state=seed,
         verbose=-1,
     )
