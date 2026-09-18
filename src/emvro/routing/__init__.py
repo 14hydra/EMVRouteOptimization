@@ -17,7 +17,11 @@ from .conditions import (
     load_open_meteo_snapshot,
     pick_harsh_open_meteo_hours,
 )
-from .emv_corridors import annotate_emv_road_privileges, path_corridor_segments
+from .emv_corridors import (
+    annotate_emv_road_privileges,
+    count_corridor_edges,
+    path_corridor_segments,
+)
 from .mipsstw_mcs import solve_mipsstw_mcs
 from .composite_drl import solve_composite_drl
 from .gbdt_router import solve_gbdt_route, train_gbdt_edge_model, build_edge_training_frame
@@ -55,4 +59,5 @@ __all__ = [
     "pick_harsh_open_meteo_hours",
     "annotate_emv_road_privileges",
     "path_corridor_segments",
+    "count_corridor_edges",
 ]

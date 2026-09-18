@@ -56,11 +56,12 @@ ASI Gemini evaluation called out **clear vs rain/snow**, **congestion**, and
 |---|---|
 | Traffic amount | Hour congestion prior (`clear_offpeak`, `clear_rush`, `night_clear`) — TomTom live flow can replace the prior later |
 | Weather | Open-Meteo factors (precip / snow / visibility / wind) from presets or `weather_hourly_nyc.csv` |
-| Bus lanes / ROW | EMV discounts on primary/trunk + `busway` edges; discount **grows** with congestion |
+| Bus lanes / ROW | EMV discounts on primary/trunk + real `busway` tags; discount **grows** with congestion |
+| Contraflow (EMV-only) | Short reverse edges on primary/trunk one-ways (≤120 m; no motorways). **Cost penalty** (~+25% + 8 s risk) so models only use it when the save is worth it — not free wrong-way speedups |
 
 Civilian GPS takes the full congestion × weather hit. EMV models take a reduced
-weather penalty and prefer priority corridors — so **% time saved vs civilian
-grows** under rush / rain / snow.
+weather penalty on legal arterials/busways. Contraflow is harder in bad weather
+and is never given the congestion ROW bonus.
 
 ```bash
 PYTHONPATH=src python scripts/run_condition_scenarios.py

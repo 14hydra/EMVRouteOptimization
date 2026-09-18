@@ -87,35 +87,52 @@ def apply_routing_conditions(
         is_contra = data.get("emv_corridor_kind") == "contraflow"
         civilian_forbidden = bool(data.get("civilian_forbidden")) or has_bus or is_contra
 
+        # Bus lanes: real EMV privilege — mild speedup vs mixed traffic.
         if has_bus:
             emv_factor *= 0.88
-        if is_contra:
-            emv_factor *= 0.95
 
-        if hw in {
-            "motorway",
-            "motorway_link",
-            "trunk",
-            "trunk_link",
-            "primary",
-            "primary_link",
-            "secondary",
-            "secondary_link",
-        } or has_bus or is_contra:
+        # Contraflow: tactical, risky — PENALTY vs legal EMV travel so routers
+        # only take it when the path save is clearly worth it (not free speedup).
+        # ~+25% time + fixed intersection/clearance risk per edge.
+        contraflow_risk_s = 0.0
+        if is_contra:
+            emv_factor *= 1.25
+            contraflow_risk_s = 8.0  # seconds: yield, verify clear, re-enter
+
+        # Congestion-scaled ROW bonus applies to legal priority roads + busways.
+        # Do NOT apply it to contraflow (that would erase the risk penalty).
+        if (
+            hw
+            in {
+                "motorway",
+                "motorway_link",
+                "trunk",
+                "trunk_link",
+                "primary",
+                "primary_link",
+                "secondary",
+                "secondary_link",
+            }
+            or has_bus
+        ) and not is_contra:
             emv_factor *= row_bonus
 
         edge_wx_civ = wx_civ
         edge_wx_emv = wx_emv
+        # Milder weather on wide arterials / busways. Contraflow is *worse* in
+        # bad weather (harder to see oncoming traffic) — keep full EMV wx hit.
         if wx_civ > 1.01 and (
-            hw in {"trunk", "trunk_link", "primary", "primary_link"} or has_bus or is_contra
-        ):
+            hw in {"trunk", "trunk_link", "primary", "primary_link"} or has_bus
+        ) and not is_contra:
             edge_wx_emv = 1.0 + 0.30 * (wx_civ - 1.0)
+        elif is_contra and wx_civ > 1.01:
+            edge_wx_emv = 1.0 + 0.70 * (wx_civ - 1.0)
 
         if civilian_forbidden:
             data["civilian_s"] = CIVILIAN_BLOCKED
         else:
             data["civilian_s"] = base * congestion * edge_wx_civ
-        data["emv_s"] = base * congestion * edge_wx_emv * emv_factor
+        data["emv_s"] = base * congestion * edge_wx_emv * emv_factor + contraflow_risk_s
         data["length_m"] = length
         data["weight_emv"] = data["emv_s"]
         data["weight_length"] = length if length > 0 else 1.0
@@ -153,7 +170,8 @@ def prepare_routing_graph(
     except Exception:  # noqa: BLE001
         pass
 
-    # Busways + EMV contraflow on primary one-ways (Google Maps won't use these)
+    # Busways + short urban contraflow (Google Maps won't use these).
+    # Contraflow is length-capped and cost-penalized — see emv_corridors.py.
     privilege_stats = annotate_emv_road_privileges(G)
     apply_routing_conditions(
         G, hour=hour, congestion=congestion, conditions=conditions

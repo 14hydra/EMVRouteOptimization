@@ -94,11 +94,11 @@ def build_edge_training_frame(
         base = float(data.get("emv_s") or data.get("travel_time") or 0.0)
         if base <= 0:
             continue
-        # Corridor edges: EMVs are faster relative to the civilian clock
-        corridor_bonus = 0.88 if data.get("emv_corridor") or data.get("civilian_forbidden") else 1.0
+        # emv_s already encodes bus discount / contraflow risk — do not
+        # double-discount corridors (that made contraflow unrealistically cheap).
         for hour in hours:
             cong = _cong_prior(hour)
-            y = base * cong * corridor_bonus
+            y = base * cong
             feat = edge_feature_row(data, hour=hour)
             feat["travel_seconds"] = float(y)
             rows.append(feat)
