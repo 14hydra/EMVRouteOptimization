@@ -241,11 +241,14 @@ def control_google_maps(
     departure_time: str | int | None = "now",
     cache_path: Path | str | None = None,
     include_polyline: bool = True,
+    alternatives: bool = False,
 ) -> RouteResult:
     """
     Primary civilian control: Google Maps Directions (traffic-aware when available).
 
     This is the phone-GPS baseline used against EMV routers on the slides.
+    When alternatives=True, meta["alternatives"] holds up to ~3 ranked route dicts
+    (each with duration / distance / optional polyline_latlons).
     """
     from ..gmaps import GoogleMapsControl
 
@@ -266,6 +269,7 @@ def control_google_maps(
         dest_lon,
         departure_time=departure_time,
         include_polyline=include_polyline,
+        alternatives=alternatives,
     )
     if not r.get("ok"):
         return RouteResult(
@@ -278,6 +282,7 @@ def control_google_maps(
         )
     secs = r.get("duration_in_traffic_s") or r.get("duration_s")
     poly = r.get("polyline_latlons") or []
+    alts = r.get("alternatives") or []
     return RouteResult(
         "control_google_maps",
         [],  # Google path is continuous lat/lon, not OSM nodes
@@ -288,6 +293,7 @@ def control_google_maps(
             "duration_s": r.get("duration_s"),
             "duration_in_traffic_s": r.get("duration_in_traffic_s"),
             "polyline_latlons": poly,
+            "alternatives": alts,
             "cached": r.get("cached", False),
             "source": "google_maps_directions",
         },

@@ -3,38 +3,38 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>EMV vs Google Maps — 3D race</title>
+<title>EMV models vs Google Maps — 3D race</title>
 <style>
-  :root { --panel: rgba(10,14,22,.88); --ok:#3dd68c; }
+  :root { --panel: rgba(10,14,22,.90); --ok:#3dd68c; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; overflow:hidden; background:#000; color:#e8eef7;
     font-family:"Segoe UI", system-ui, sans-serif; }
   #map { position:absolute; inset:0; }
   gmp-map-3d { width:100%; height:100%; }
   #hud { position:absolute; inset:0; pointer-events:none; z-index:5;
-    display:flex; flex-direction:column; justify-content:space-between; padding:16px 18px; }
+    display:flex; flex-direction:column; justify-content:space-between; padding:14px 16px; }
   .top { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; }
   .card { background:var(--panel); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.12);
-    border-radius:14px; padding:14px 16px; max-width:430px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+    border-radius:14px; padding:12px 14px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+  .card.main { max-width:560px; }
   .card h1 { margin:0 0 4px; font-size:15px; font-weight:700; color:#fff; }
   .sub { font-size:12px; color:#9aa3ad; margin-bottom:10px; line-height:1.4; }
-  .row { display:flex; gap:10px; }
-  .pill { flex:1; border-radius:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.08);
-    background:rgba(255,255,255,.03); }
-  .pill .who { font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; }
-  .pill .time { font-size:22px; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
-  .pill .eta { font-size:11px; opacity:.7; margin-top:2px; }
-  .pill.gmaps { border-color:rgba(197,204,212,.45); }
-  .pill.gmaps .time { color:#e4e8ed; }
-  .pill.emv { border-color:rgba(192,132,252,.55); }
-  .pill.emv .time { color:#e9d5ff; }
-  .badge { display:inline-block; margin-top:10px; padding:6px 10px; border-radius:999px;
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:720px) { .cols { grid-template-columns:1fr; } }
+  .col-title { font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:#8b95a5; margin-bottom:6px; }
+  .pill { border-radius:10px; padding:8px 10px; border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.03); margin-bottom:6px; display:flex; gap:8px; align-items:center; }
+  .pill.winner { border-color:rgba(61,214,140,.45); background:rgba(61,214,140,.08); }
+  .pill .swatch { width:10px; height:28px; border-radius:3px; flex-shrink:0; }
+  .pill .who { font-size:11px; opacity:.8; }
+  .pill .time { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .pill .eta { font-size:10px; opacity:.65; margin-top:1px; }
+  .badge { display:inline-block; margin-top:8px; padding:6px 10px; border-radius:999px;
     background:rgba(61,214,140,.12); color:var(--ok); font-size:12px; font-weight:700;
     border:1px solid rgba(61,214,140,.35); }
-  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:#c5cede; }
+  .legend { display:flex; flex-direction:column; gap:6px; font-size:12px; color:#c5cede; max-width:240px; }
   .legend span { display:inline-flex; align-items:center; gap:6px; }
-  .sw { width:18px; height:4px; border-radius:2px; display:inline-block; }
-  .sw.g { background:#c5ccd4; } .sw.e { background:#c084fc; } .sw.gold { background:#f0c24b; }
+  .sw { width:16px; height:4px; border-radius:2px; display:inline-block; }
   .bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
   .controls { pointer-events:auto; display:flex; gap:8px; flex-wrap:wrap; }
   button { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
@@ -42,7 +42,7 @@
   button:hover { background:rgba(255,255,255,.2); }
   button.primary { background:#6b3fa0; border-color:#9b6edc; }
   button.on { background:#1f6f4a; border-color:#3dd68c; }
-  .hint { font-size:11px; color:#8b95a5; max-width:340px; text-align:right; line-height:1.4; }
+  .hint { font-size:11px; color:#8b95a5; max-width:360px; text-align:right; line-height:1.4; }
   #err { display:none; position:absolute; left:50%; top:42%; transform:translate(-50%,-50%);
     z-index:20; max-width:560px; width:calc(100% - 40px); background:rgba(40,12,12,.94);
     color:#ffd7d7; border:1px solid #ff6b6b; border-radius:12px; padding:16px 18px; font-size:13px; line-height:1.5; }
@@ -53,41 +53,26 @@
 <div id="err"></div>
 <div id="hud">
   <div class="top">
-    <div class="card">
+    <div class="card main">
       <h1>EMV race · __LABEL__</h1>
-      <div class="sub">Same travel-time model for both · Google Maps supplies the civilian <i>path</i>; we score both ambulances with our EMV ETA</div>
-      <div class="row">
-        <div class="pill gmaps">
-          <div class="who">Google Maps path</div>
-          <div class="time" id="t-gmaps">0:00</div>
-          <div class="eta">Our ETA __GMAPS_MIN__ min</div>
-        </div>
-        <div class="pill emv">
-          <div class="who">Best EMV path</div>
-          <div class="time" id="t-emv">0:00</div>
-          <div class="eta">Our ETA __EMV_MIN__ min</div>
-        </div>
-      </div>
-      <div class="badge" id="badge">__PCT__% faster on our clock</div>
+      <div class="sub">Same travel-time model for every ambulance · Google supplies path geometry; our three routers race Google’s best alternatives</div>
+      <div class="cols" id="racer-cols"></div>
+      <div class="badge" id="badge">Best EMV __PCT__% faster than best Google path on our clock</div>
     </div>
-    <div class="card" style="max-width:250px">
-      <div class="legend">
-        <span><i class="sw g"></i> Google path</span>
-        <span><i class="sw e"></i> EMV path</span>
-        <span><i class="sw gold"></i> EMV-only ROW</span>
-      </div>
+    <div class="card">
+      <div class="legend" id="legend"></div>
       <div style="margin-top:10px;font-size:12px;color:#9aa3ad;line-height:1.45">
-        Use <b>Camera</b> to jump between the Google path and our EMV path. Both clocks use <b>our</b> travel-time model.
+        <b>Camera</b> cycles chase targets. All ETAs use <b>our</b> edge costs.
       </div>
     </div>
   </div>
   <div class="bottom">
     <div class="controls">
       <button class="primary" id="btn-replay">Replay race</button>
-      <button class="on" id="btn-camera">Camera: Best EMV</button>
+      <button class="on" id="btn-camera">Camera</button>
       <button id="btn-overview">Overview</button>
     </div>
-    <div class="hint">Same ETA model · different paths. Camera toggles Google path ↔ Best EMV. Overview = free orbit / zoom.</div>
+    <div class="hint">Grey = Google Maps alternatives · Purple / green / amber = our models</div>
   </div>
 </div>
 
@@ -100,13 +85,8 @@
 
 <script type="module">
 const DATA = __DATA__;
-const gMins = DATA.gmaps.minutes;
-const eMins = DATA.emv.minutes;
-const gTotalS = Math.max(1, (DATA.gmaps.coords.at(-1)?.[2]) ?? gMins * 60);
-const eTotalS = Math.max(1, (DATA.emv.coords.at(-1)?.[2]) ?? eMins * 60);
-// Wall-clock race length; model time runs in sync so shared edges stay together
-const raceDurationSec = 32;
-const modelRate = Math.max(gTotalS, eTotalS) / raceDurationSec; // model-seconds per wall-second
+const RACERS = DATA.racers || [];
+const raceDurationSec = 36;
 
 function showErr(msg) {
   const el = document.getElementById("err");
@@ -134,7 +114,11 @@ function bearing(a, b) {
 function toPath(coords, alt = 6) {
   return coords.map(([lat, lon]) => ({ lat, lng: lon, altitude: alt }));
 }
-/** Position by our model clock (cum seconds in coords[i][2]). */
+function totalS(r) {
+  const c = r.coords;
+  if (!c || !c.length) return Math.max(1, (r.minutes || 1) * 60);
+  return Math.max(1, c[c.length - 1][2] ?? (r.minutes * 60));
+}
 function pointAtTime(coords, modelSec) {
   const n = coords.length;
   if (n < 1) return { pos: { lat: 0, lng: 0, altitude: 20 }, hdg: 0, done: true };
@@ -158,11 +142,6 @@ function pointAtTime(coords, modelSec) {
   const hdg = bearing({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] });
   return { pos, hdg, done: t >= total - 1e-6 };
 }
-function pointAt(coords, u) {
-  // Fallback for cameras that still pass a 0..1 fraction
-  const total = coords.at(-1)?.[2] ?? 1;
-  return pointAtTime(coords, u * total);
-}
 function overviewCamera(coordsList) {
   let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
   for (const coords of coordsList) {
@@ -180,6 +159,47 @@ function overviewCamera(coordsList) {
   };
 }
 
+(function buildHud() {
+  const gmaps = RACERS.filter(r => r.group === "gmaps");
+  const emv = RACERS.filter(r => r.group === "emv");
+  const cols = document.getElementById("racer-cols");
+  function makeCol(title, list) {
+    const wrap = document.createElement("div");
+    const h = document.createElement("div");
+    h.className = "col-title";
+    h.textContent = title;
+    wrap.appendChild(h);
+    for (const r of list) {
+      const pill = document.createElement("div");
+      pill.className = "pill" + (r.id === DATA.best_emv_id ? " winner" : "");
+      pill.innerHTML =
+        `<div class="swatch" style="background:${r.color}"></div>` +
+        `<div><div class="who">${r.label}</div>` +
+        `<div class="time" id="t-${r.id}">0:00</div>` +
+        `<div class="eta">Our ETA ${Number(r.minutes).toFixed(2)} min</div></div>`;
+      wrap.appendChild(pill);
+    }
+    return wrap;
+  }
+  cols.appendChild(makeCol("Google Maps paths", gmaps));
+  cols.appendChild(makeCol("Our models", emv));
+
+  const legend = document.getElementById("legend");
+  for (const r of RACERS) {
+    const s = document.createElement("span");
+    s.innerHTML = `<i class="sw" style="background:${r.color}"></i> ${r.label}`;
+    legend.appendChild(s);
+  }
+})();
+
+const maxTotalS = Math.max(...RACERS.map(totalS), 1);
+const modelRate = maxTotalS / raceDurationSec;
+const chaseIds = [
+  DATA.best_emv_id,
+  ...RACERS.filter(r => r.group === "emv" && r.id !== DATA.best_emv_id).map(r => r.id),
+  ...RACERS.filter(r => r.group === "gmaps").map(r => r.id),
+].filter(Boolean);
+
 async function main() {
   let Map3DElement, Marker3DElement, Polyline3DElement;
   try {
@@ -194,89 +214,95 @@ async function main() {
     return;
   }
 
-  const start = pointAt(DATA.emv.coords, 0);
-  const overview = overviewCamera([DATA.gmaps.coords, DATA.emv.coords]);
+  const bestEmv = RACERS.find(r => r.id === DATA.best_emv_id) || RACERS[0];
+  const start = pointAtTime(bestEmv.coords, 0);
+  const overview = overviewCamera(RACERS.map(r => r.coords));
 
   const map = new Map3DElement({
     center: { lat: start.pos.lat, lng: start.pos.lng, altitude: 40 },
     heading: start.hdg,
     tilt: 60,
-    range: 900,
+    range: 1100,
     mode: "HYBRID",
     gestureHandling: "GREEDY",
   });
   document.getElementById("map").append(map);
 
-  map.append(new Polyline3DElement({
-    path: toPath(DATA.gmaps.coords, 4),
-    strokeColor: "#d0d5db",
-    outerColor: "#222831",
-    strokeWidth: 10,
-    outerWidth: 0.35,
-    altitudeMode: "RELATIVE_TO_GROUND",
-    drawsOccludedSegments: true,
-  }));
-  map.append(new Polyline3DElement({
-    path: toPath(DATA.emv.coords, 8),
-    strokeColor: "#c084fc",
-    outerColor: "#3b0764",
-    strokeWidth: 14,
-    outerWidth: 0.4,
-    altitudeMode: "RELATIVE_TO_GROUND",
-    drawsOccludedSegments: true,
-  }));
-  for (const seg of (DATA.emv.corridor_segs || [])) {
+  for (const r of RACERS.filter(x => x.group === "gmaps")) {
     map.append(new Polyline3DElement({
-      path: toPath(seg, 10),
-      strokeColor: "#f0c24b",
-      outerColor: "#5a4208",
-      strokeWidth: 18,
-      outerWidth: 0.3,
+      path: toPath(r.coords, 4),
+      strokeColor: r.color,
+      outerColor: "#222831",
+      strokeWidth: 10,
+      outerWidth: 0.35,
       altitudeMode: "RELATIVE_TO_GROUND",
       drawsOccludedSegments: true,
     }));
   }
+  for (const r of RACERS.filter(x => x.group === "emv")) {
+    map.append(new Polyline3DElement({
+      path: toPath(r.coords, 8),
+      strokeColor: r.color,
+      outerColor: "#1a1020",
+      strokeWidth: 14,
+      outerWidth: 0.4,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      drawsOccludedSegments: true,
+    }));
+    for (const seg of (r.corridor_segs || [])) {
+      map.append(new Polyline3DElement({
+        path: toPath(seg, 10),
+        strokeColor: "#f0c24b",
+        outerColor: "#5a4208",
+        strokeWidth: 18,
+        outerWidth: 0.3,
+        altitudeMode: "RELATIVE_TO_GROUND",
+        drawsOccludedSegments: true,
+      }));
+    }
+  }
 
-  const o = DATA.scenario.origin, d = DATA.scenario.dest;
+  const o = DATA.scenario.origin, dest = DATA.scenario.dest;
   map.append(new Marker3DElement({
     position: { lat: o.lat, lng: o.lon, altitude: 35 },
     altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "START", drawsWhenOccluded: true,
   }));
   map.append(new Marker3DElement({
-    position: { lat: d.lat, lng: d.lon, altitude: 35 },
+    position: { lat: dest.lat, lng: dest.lon, altitude: 35 },
     altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "DEST", drawsWhenOccluded: true,
   }));
 
-  const ambG = new Marker3DElement({
-    position: pointAt(DATA.gmaps.coords, 0).pos,
-    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "Google path", drawsWhenOccluded: true,
-  });
-  const ambE = new Marker3DElement({
-    position: pointAt(DATA.emv.coords, 0).pos,
-    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "Best EMV", drawsWhenOccluded: true,
-  });
-  map.append(ambG); map.append(ambE);
+  const markers = {};
+  for (const r of RACERS) {
+    const m = new Marker3DElement({
+      position: pointAtTime(r.coords, 0).pos,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      extruded: true,
+      label: r.label,
+      drawsWhenOccluded: true,
+    });
+    map.append(m);
+    markers[r.id] = m;
+  }
 
-  // "emv" | "gmaps" | null (free / overview)
-  let cameraTarget = "emv";
+  let cameraTarget = chaseIds[0] || null;
+  let chaseIdx = 0;
   let playing = true;
   let t0 = performance.now();
-  let userRange = 900;
-  let camTransition = null; // zoom-out → across → zoom-in
+  let userRange = 1100;
+  let camTransition = null;
 
   function easeInOut(t) {
     return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   }
 
   const btnCamera = document.getElementById("btn-camera");
-  function setCameraTarget(target, { animate = false } = {}) {
+  function setCameraTarget(targetId, { animate = false } = {}) {
     const prev = cameraTarget;
-    cameraTarget = target; // "emv" | "gmaps" | null
-    if (cameraTarget === "emv") {
-      btnCamera.textContent = "Camera: Best EMV";
-      btnCamera.classList.add("on");
-    } else if (cameraTarget === "gmaps") {
-      btnCamera.textContent = "Camera: Google Maps";
+    cameraTarget = targetId;
+    const r = RACERS.find(x => x.id === cameraTarget);
+    if (r) {
+      btnCamera.textContent = "Camera: " + r.label;
       btnCamera.classList.add("on");
     } else {
       btnCamera.textContent = "Camera: Free";
@@ -284,17 +310,12 @@ async function main() {
       camTransition = null;
     }
 
-    if (
-      animate &&
-      (prev === "emv" || prev === "gmaps") &&
-      (target === "emv" || target === "gmaps") &&
-      prev !== target
-    ) {
+    if (animate && prev && targetId && prev !== targetId) {
       const startRange = typeof map.range === "number" ? map.range : userRange;
       const peakRange = Math.max(startRange * 3.2, overview.range * 0.75, 2200);
       camTransition = {
         from: prev,
-        to: target,
+        to: targetId,
         startMs: performance.now(),
         outMs: 700,
         acrossMs: 900,
@@ -305,9 +326,8 @@ async function main() {
       };
     }
   }
-  setCameraTarget("emv");
+  setCameraTarget(chaseIds[0] || null);
 
-  // Capture zoom while chasing (button only — no auto-disable).
   map.addEventListener("wheel", () => {
     setTimeout(() => {
       if (typeof map.range === "number" && map.range > 80) userRange = map.range;
@@ -318,21 +338,21 @@ async function main() {
     t0 = performance.now();
     playing = true;
     camTransition = null;
-    document.getElementById("badge").textContent = DATA.pct_faster + "% faster on this trip";
-    setCameraTarget("emv");
-    const s = pointAt(DATA.emv.coords, 0);
+    document.getElementById("badge").textContent =
+      "Best EMV " + DATA.pct_faster + "% faster than best Google path on our clock";
+    setCameraTarget(chaseIds[0] || null);
+    const s = pointAtTime(bestEmv.coords, 0);
     map.center = { lat: s.pos.lat, lng: s.pos.lng, altitude: 40 };
     map.heading = s.hdg;
     map.tilt = 60;
-    map.range = 900;
-    userRange = 900;
+    map.range = 1100;
+    userRange = 1100;
   };
 
-  // Toggle Google Maps ↔ Best EMV with zoom-out / zoom-in
   btnCamera.onclick = () => {
-    if (camTransition) return;
-    const next = cameraTarget === "emv" ? "gmaps" : "emv";
-    setCameraTarget(next, { animate: true });
+    if (camTransition || !chaseIds.length) return;
+    chaseIdx = (chaseIdx + 1) % chaseIds.length;
+    setCameraTarget(chaseIds[chaseIdx], { animate: true });
   };
 
   document.getElementById("btn-overview").onclick = () => {
@@ -345,12 +365,13 @@ async function main() {
     userRange = overview.range;
   };
 
-  function applyCameraTransition(now, g, e) {
+  function applyCameraTransition(now, poses) {
     const tr = camTransition;
     if (!tr) return false;
+    const from = poses[tr.from];
+    const to = poses[tr.to];
+    if (!from || !to) { camTransition = null; return false; }
     const elapsed = now - tr.startMs;
-    const from = tr.from === "gmaps" ? g : e;
-    const to = tr.to === "gmaps" ? g : e;
     const total = tr.outMs + tr.acrossMs + tr.inMs;
 
     if (elapsed >= total) {
@@ -363,14 +384,12 @@ async function main() {
     }
 
     if (elapsed < tr.outMs) {
-      // Phase 1: zoom out from current ambulance
       const u = easeInOut(elapsed / tr.outMs);
       map.center = { lat: from.pos.lat, lng: from.pos.lng, altitude: 28 + u * 80 };
       map.heading = from.hdg;
       map.tilt = lerp(58, 48, u);
       map.range = lerp(tr.startRange, tr.peakRange, u);
     } else if (elapsed < tr.outMs + tr.acrossMs) {
-      // Phase 2: fly across at altitude toward the other ambulance
       const u = easeInOut((elapsed - tr.outMs) / tr.acrossMs);
       map.center = {
         lat: lerp(from.pos.lat, to.pos.lat, u),
@@ -381,7 +400,6 @@ async function main() {
       map.tilt = 48;
       map.range = tr.peakRange;
     } else {
-      // Phase 3: zoom in on the new ambulance
       const u = easeInOut((elapsed - tr.outMs - tr.acrossMs) / tr.inMs);
       map.center = { lat: to.pos.lat, lng: to.pos.lng, altitude: lerp(120, 28, u) };
       map.heading = to.hdg;
@@ -394,18 +412,26 @@ async function main() {
   function tick(now) {
     requestAnimationFrame(tick);
     const wall = (now - t0) / 1000;
-    const modelSec = playing ? wall * modelRate : Math.max(gTotalS, eTotalS);
-    const g = pointAtTime(DATA.gmaps.coords, Math.min(modelSec, gTotalS));
-    const e = pointAtTime(DATA.emv.coords, Math.min(modelSec, eTotalS));
-    ambG.position = g.pos;
-    ambE.position = e.pos;
-    document.getElementById("t-gmaps").textContent = fmt(Math.min(gMins, Math.min(modelSec, gTotalS) / 60));
-    document.getElementById("t-emv").textContent = fmt(Math.min(eMins, Math.min(modelSec, eTotalS) / 60));
+    const modelSec = playing ? wall * modelRate : maxTotalS;
+    const poses = {};
+    let allDone = true;
+    let bestEmvDone = false;
 
-    if (applyCameraTransition(now, g, e)) {
-      // mid switch animation
-    } else if (cameraTarget) {
-      const t = cameraTarget === "gmaps" ? g : e;
+    for (const r of RACERS) {
+      const ts = totalS(r);
+      const p = pointAtTime(r.coords, Math.min(modelSec, ts));
+      poses[r.id] = p;
+      markers[r.id].position = p.pos;
+      const el = document.getElementById("t-" + r.id);
+      if (el) el.textContent = fmt(Math.min(r.minutes, Math.min(modelSec, ts) / 60));
+      if (!p.done) allDone = false;
+      if (r.id === DATA.best_emv_id && p.done) bestEmvDone = true;
+    }
+
+    if (applyCameraTransition(now, poses)) {
+      // mid switch
+    } else if (cameraTarget && poses[cameraTarget]) {
+      const t = poses[cameraTarget];
       map.center = { lat: t.pos.lat, lng: t.pos.lng, altitude: 28 };
       map.heading = lerpAngle(Number(map.heading) || t.hdg, t.hdg, 0.14);
       map.tilt = 58;
@@ -413,15 +439,16 @@ async function main() {
     }
 
     if (!playing) return;
-    if (g.done && e.done) {
+    if (allDone) {
       playing = false;
+      const be = RACERS.find(r => r.id === DATA.best_emv_id);
+      const bg = RACERS.find(r => r.id === DATA.best_gmaps_id);
       document.getElementById("badge").textContent =
-        "Done · EMV path " + DATA.emv.minutes + " min vs Google path " + DATA.gmaps.minutes +
-        " min on our model (" + DATA.pct_faster + "% faster)";
-    } else if (e.done && !g.done) {
-      const left = Math.max(0, 1 - modelSec / gTotalS);
+        "Done · " + (be?.label || "EMV") + " " + (be?.minutes) + " min vs " +
+        (bg?.label || "Google") + " " + (bg?.minutes) + " min (" + DATA.pct_faster + "% faster)";
+    } else if (bestEmvDone) {
       document.getElementById("badge").textContent =
-        "EMV arrived · Google path still en route (" + Math.round(left * 100) + "% left)";
+        "Best EMV arrived · others still en route on our clock";
     }
   }
   requestAnimationFrame(tick);

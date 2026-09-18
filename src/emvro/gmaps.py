@@ -141,12 +141,43 @@ class GoogleMapsControl:
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.cache_path.write_text(json.dumps(self._cache))
 
+    @staticmethod
+    def _parse_routes_v2_route(route: dict[str, Any], *, include_polyline: bool) -> dict[str, Any]:
+        traffic_s = _parse_duration_s(route.get("duration"))
+        static_s = _parse_duration_s(route.get("staticDuration"))
+        duration_s = static_s or traffic_s
+        item: dict[str, Any] = {
+            "duration_s": duration_s,
+            "duration_in_traffic_s": traffic_s,
+            "distance_m": int(route.get("distanceMeters") or 0),
+        }
+        if include_polyline:
+            enc = ((route.get("polyline") or {}).get("encodedPolyline")) or ""
+            item["polyline_latlons"] = decode_polyline(enc)
+        return item
+
+    @staticmethod
+    def _parse_directions_route(route: dict[str, Any], *, include_polyline: bool) -> dict[str, Any]:
+        leg = (route.get("legs") or [{}])[0]
+        duration_s = int((leg.get("duration") or {}).get("value") or 0)
+        traffic = (leg.get("duration_in_traffic") or {}).get("value")
+        item: dict[str, Any] = {
+            "duration_s": duration_s,
+            "duration_in_traffic_s": int(traffic) if traffic is not None else None,
+            "distance_m": int((leg.get("distance") or {}).get("value") or 0),
+        }
+        if include_polyline:
+            enc = (route.get("overview_polyline") or {}).get("points") or ""
+            item["polyline_latlons"] = decode_polyline(enc)
+        return item
+
     def _routes_api(
         self,
         origin: tuple[float, float],
         dest: tuple[float, float],
         *,
         include_polyline: bool,
+        alternatives: bool = False,
     ) -> dict[str, Any]:
         field_mask = "routes.duration,routes.staticDuration,routes.distanceMeters"
         if include_polyline:
@@ -156,59 +187,108 @@ class GoogleMapsControl:
             "X-Goog-Api-Key": self.api_key or "",
             "X-Goog-FieldMask": field_mask,
         }
-        body = {
-            "origin": {
-                "location": {"latLng": {"latitude": origin[0], "longitude": origin[1]}}
-            },
-            "destination": {
-                "location": {"latLng": {"latitude": dest[0], "longitude": dest[1]}}
-            },
-            "travelMode": "DRIVE",
-            "routingPreference": "TRAFFIC_AWARE",
-            "computeAlternativeRoutes": False,
-            "languageCode": "en-US",
-            "units": "METRIC",
-        }
-        try:
-            r = requests.post(
-                GMAPS_ROUTES_URL, headers=headers, json=body, timeout=self.timeout_s
-            )
-            payload = r.json() if r.content else {}
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": "request_failed", "message": str(exc)}
 
-        if r.status_code >= 400:
-            err = payload.get("error") or {}
-            return {
-                "ok": False,
-                "error": "routes_api_http",
-                "status": r.status_code,
-                "message": err.get("message") or payload.get("message") or r.text[:300],
+        # When alternatives are requested, query a few routing preferences and
+        # merge unique polylines — Routes API often returns only one path for a
+        # given preference even with computeAlternativeRoutes=true.
+        prefs = (
+            ["TRAFFIC_AWARE", "TRAFFIC_AWARE_OPTIMAL", "TRAFFIC_UNAWARE"]
+            if alternatives
+            else ["TRAFFIC_AWARE"]
+        )
+        merged: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        last_error: dict[str, Any] | None = None
+
+        for pref in prefs:
+            body = {
+                "origin": {
+                    "location": {
+                        "latLng": {"latitude": origin[0], "longitude": origin[1]}
+                    }
+                },
+                "destination": {
+                    "location": {
+                        "latLng": {"latitude": dest[0], "longitude": dest[1]}
+                    }
+                },
+                "travelMode": "DRIVE",
+                "routingPreference": pref,
+                "computeAlternativeRoutes": bool(alternatives),
+                "languageCode": "en-US",
+                "units": "METRIC",
             }
-        routes = payload.get("routes") or []
-        if not routes:
-            return {
+            try:
+                r = requests.post(
+                    GMAPS_ROUTES_URL, headers=headers, json=body, timeout=self.timeout_s
+                )
+                payload = r.json() if r.content else {}
+            except Exception as exc:  # noqa: BLE001
+                last_error = {"ok": False, "error": "request_failed", "message": str(exc)}
+                continue
+
+            if r.status_code >= 400:
+                err = payload.get("error") or {}
+                last_error = {
+                    "ok": False,
+                    "error": "routes_api_http",
+                    "status": r.status_code,
+                    "message": err.get("message")
+                    or payload.get("message")
+                    or r.text[:300],
+                }
+                continue
+
+            for rt in payload.get("routes") or []:
+                item = self._parse_routes_v2_route(
+                    rt, include_polyline=include_polyline
+                )
+                item["routing_preference"] = pref
+                poly = item.get("polyline_latlons") or []
+                if len(poly) >= 2:
+                    mid = poly[len(poly) // 2]
+                    key = (
+                        f"{round(poly[0][0], 4)},{round(poly[0][1], 4)}|"
+                        f"{round(mid[0], 4)},{round(mid[1], 4)}|"
+                        f"{round(poly[-1][0], 4)},{round(poly[-1][1], 4)}"
+                    )
+                else:
+                    key = f"{pref}|{item.get('distance_m')}|{item.get('duration_s')}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(item)
+
+            if not alternatives:
+                break
+
+        if not merged:
+            return last_error or {
                 "ok": False,
                 "error": "routes_empty",
-                "message": (payload.get("error") or {}).get("message") or "no routes",
+                "message": "no routes",
             }
-        route0 = routes[0]
-        traffic_s = _parse_duration_s(route0.get("duration"))
-        static_s = _parse_duration_s(route0.get("staticDuration"))
-        duration_s = static_s or traffic_s
-        distance_m = int(route0.get("distanceMeters") or 0)
+
+        merged.sort(
+            key=lambda x: float(
+                x.get("duration_in_traffic_s") or x.get("duration_s") or 1e18
+            )
+        )
+        # Keep at most 3 for the race UI
+        alts = merged[:3]
+        route0 = alts[0]
         result: dict[str, Any] = {
             "ok": True,
-            "duration_s": duration_s,
-            "duration_in_traffic_s": traffic_s,
-            "distance_m": distance_m,
+            "duration_s": route0.get("duration_s"),
+            "duration_in_traffic_s": route0.get("duration_in_traffic_s"),
+            "distance_m": route0.get("distance_m"),
             "status": "OK",
             "api": "routes_v2",
             "cached": False,
+            "alternatives": alts,
         }
         if include_polyline:
-            enc = ((route0.get("polyline") or {}).get("encodedPolyline")) or ""
-            result["polyline_latlons"] = decode_polyline(enc)
+            result["polyline_latlons"] = route0.get("polyline_latlons") or []
         return result
 
     def _directions_api(
@@ -218,6 +298,7 @@ class GoogleMapsControl:
         *,
         departure_time: str | int | None,
         include_polyline: bool,
+        alternatives: bool = False,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "origin": f"{origin[0]},{origin[1]}",
@@ -225,6 +306,8 @@ class GoogleMapsControl:
             "mode": "driving",
             "key": self.api_key,
         }
+        if alternatives:
+            params["alternatives"] = "true"
         if departure_time is not None:
             params["departure_time"] = departure_time
         try:
@@ -242,23 +325,28 @@ class GoogleMapsControl:
                 "status": status,
                 "message": payload.get("error_message") or status,
             }
-        route0 = payload["routes"][0]
-        leg = route0["legs"][0]
-        duration_s = int(leg["duration"]["value"])
-        traffic = leg.get("duration_in_traffic", {}).get("value")
-        distance_m = int(leg.get("distance", {}).get("value") or 0)
+        alts = [
+            self._parse_directions_route(rt, include_polyline=include_polyline)
+            for rt in payload["routes"]
+        ]
+        alts.sort(
+            key=lambda x: float(
+                x.get("duration_in_traffic_s") or x.get("duration_s") or 1e18
+            )
+        )
+        route0 = alts[0]
         result: dict[str, Any] = {
             "ok": True,
-            "duration_s": duration_s,
-            "duration_in_traffic_s": int(traffic) if traffic is not None else None,
-            "distance_m": distance_m,
+            "duration_s": route0.get("duration_s"),
+            "duration_in_traffic_s": route0.get("duration_in_traffic_s"),
+            "distance_m": route0.get("distance_m"),
             "status": status,
             "api": "directions_legacy",
             "cached": False,
+            "alternatives": alts,
         }
         if include_polyline:
-            enc = (route0.get("overview_polyline") or {}).get("points") or ""
-            result["polyline_latlons"] = decode_polyline(enc)
+            result["polyline_latlons"] = route0.get("polyline_latlons") or []
         return result
 
     def driving_seconds(
@@ -270,12 +358,13 @@ class GoogleMapsControl:
         *,
         departure_time: str | int | None = "now",
         include_polyline: bool = False,
+        alternatives: bool = False,
     ) -> dict[str, Any]:
         """
         Return civilian Google Maps driving duration seconds for origin→dest.
 
         Keys: ok, duration_s, duration_in_traffic_s, distance_m, status, error,
-        optional polyline_latlons
+        optional polyline_latlons, optional alternatives (list of route dicts).
         """
         if not self.api_key:
             return {
@@ -286,7 +375,15 @@ class GoogleMapsControl:
 
         origin = (float(origin_lat), float(origin_lon))
         dest = (float(dest_lat), float(dest_lon))
-        mode_tag = "routes_poly" if include_polyline else "routes"
+        if alternatives and include_polyline:
+            # Bump cache tag when multi-preference merge logic changes
+            mode_tag = "routes_poly_alt_v2"
+        elif alternatives:
+            mode_tag = "routes_alt_v2"
+        elif include_polyline:
+            mode_tag = "routes_poly"
+        else:
+            mode_tag = "routes"
         ck = self._key(origin, dest, mode_tag, departure_time)
         if ck in self._cache:
             hit = dict(self._cache[ck])
@@ -294,13 +391,19 @@ class GoogleMapsControl:
             return hit
 
         if self.prefer_routes_api:
-            result = self._routes_api(origin, dest, include_polyline=include_polyline)
+            result = self._routes_api(
+                origin,
+                dest,
+                include_polyline=include_polyline,
+                alternatives=alternatives,
+            )
             if not result.get("ok"):
                 legacy = self._directions_api(
                     origin,
                     dest,
                     departure_time=departure_time,
                     include_polyline=include_polyline,
+                    alternatives=alternatives,
                 )
                 if legacy.get("ok"):
                     result = legacy
@@ -310,7 +413,19 @@ class GoogleMapsControl:
                 dest,
                 departure_time=departure_time,
                 include_polyline=include_polyline,
+                alternatives=alternatives,
             )
+
+        # Always expose alternatives list (at least the primary) for callers
+        if result.get("ok") and not result.get("alternatives"):
+            primary = {
+                "duration_s": result.get("duration_s"),
+                "duration_in_traffic_s": result.get("duration_in_traffic_s"),
+                "distance_m": result.get("distance_m"),
+            }
+            if include_polyline:
+                primary["polyline_latlons"] = result.get("polyline_latlons") or []
+            result["alternatives"] = [primary]
 
         self._cache[ck] = {k: v for k, v in result.items() if k != "cached"}
         self._save_cache()
