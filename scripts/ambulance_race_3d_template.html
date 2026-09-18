@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>EMV vs Google Maps — 3D race</title>
+<style>
+  :root { --panel: rgba(10,14,22,.88); --ok:#3dd68c; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#000; color:#e8eef7;
+    font-family:"Segoe UI", system-ui, sans-serif; }
+  #map { position:absolute; inset:0; }
+  gmp-map-3d { width:100%; height:100%; }
+  #hud { position:absolute; inset:0; pointer-events:none; z-index:5;
+    display:flex; flex-direction:column; justify-content:space-between; padding:16px 18px; }
+  .top { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; }
+  .card { background:var(--panel); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:14px 16px; max-width:430px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+  .card h1 { margin:0 0 4px; font-size:15px; font-weight:700; color:#fff; }
+  .sub { font-size:12px; color:#9aa3ad; margin-bottom:10px; line-height:1.4; }
+  .row { display:flex; gap:10px; }
+  .pill { flex:1; border-radius:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.03); }
+  .pill .who { font-size:11px; text-transform:uppercase; letter-spacing:.06em; opacity:.75; }
+  .pill .time { font-size:22px; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .pill .eta { font-size:11px; opacity:.7; margin-top:2px; }
+  .pill.gmaps { border-color:rgba(197,204,212,.45); }
+  .pill.gmaps .time { color:#e4e8ed; }
+  .pill.emv { border-color:rgba(192,132,252,.55); }
+  .pill.emv .time { color:#e9d5ff; }
+  .badge { display:inline-block; margin-top:10px; padding:6px 10px; border-radius:999px;
+    background:rgba(61,214,140,.12); color:var(--ok); font-size:12px; font-weight:700;
+    border:1px solid rgba(61,214,140,.35); }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:#c5cede; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:18px; height:4px; border-radius:2px; display:inline-block; }
+  .sw.g { background:#c5ccd4; } .sw.e { background:#c084fc; } .sw.gold { background:#f0c24b; }
+  .bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+  .controls { pointer-events:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  button { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
+    color:#fff; border-radius:10px; padding:10px 14px; font-weight:600; font-size:13px; }
+  button:hover { background:rgba(255,255,255,.2); }
+  button.primary { background:#6b3fa0; border-color:#9b6edc; }
+  button.on { background:#1f6f4a; border-color:#3dd68c; }
+  .hint { font-size:11px; color:#8b95a5; max-width:340px; text-align:right; line-height:1.4; }
+  #err { display:none; position:absolute; left:50%; top:42%; transform:translate(-50%,-50%);
+    z-index:20; max-width:560px; width:calc(100% - 40px); background:rgba(40,12,12,.94);
+    color:#ffd7d7; border:1px solid #ff6b6b; border-radius:12px; padding:16px 18px; font-size:13px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="err"></div>
+<div id="hud">
+  <div class="top">
+    <div class="card">
+      <h1>EMV race · __LABEL__</h1>
+      <div class="sub">Google Maps photorealistic 3D · rush hour · civilian GPS vs best EMV (MIPSSTW + MCS)</div>
+      <div class="row">
+        <div class="pill gmaps">
+          <div class="who">Google Maps</div>
+          <div class="time" id="t-gmaps">0:00</div>
+          <div class="eta">ETA __GMAPS_MIN__ min</div>
+        </div>
+        <div class="pill emv">
+          <div class="who">Best EMV</div>
+          <div class="time" id="t-emv">0:00</div>
+          <div class="eta">ETA __EMV_MIN__ min</div>
+        </div>
+      </div>
+      <div class="badge" id="badge">__PCT__% faster on this trip</div>
+    </div>
+    <div class="card" style="max-width:250px">
+      <div class="legend">
+        <span><i class="sw g"></i> Google path</span>
+        <span><i class="sw e"></i> EMV path</span>
+        <span><i class="sw gold"></i> EMV-only ROW</span>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:#9aa3ad;line-height:1.45">
+        Use <b>Camera</b> to jump between Google Maps and our EMV ambulance. <b>Overview</b> frees the camera.
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="controls">
+      <button class="primary" id="btn-replay">Replay race</button>
+      <button class="on" id="btn-camera">Camera: Best EMV</button>
+      <button id="btn-overview">Overview</button>
+    </div>
+    <div class="hint">Camera toggles Google Maps ↔ Best EMV chase. Overview = free orbit / zoom.</div>
+  </div>
+</div>
+
+<script>
+(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k of Object.keys(g))e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+  key: "__GMAPS_KEY__",
+  v: "weekly"
+});
+</script>
+
+<script type="module">
+const DATA = __DATA__;
+const gMins = DATA.gmaps.minutes;
+const eMins = DATA.emv.minutes;
+const raceDurationSec = 32;
+const gFinishT = gMins / Math.max(eMins, 0.01);
+
+function showErr(msg) {
+  const el = document.getElementById("err");
+  el.style.display = "block";
+  el.innerHTML = msg;
+}
+function fmt(minFrac) {
+  const totalSec = Math.max(0, minFrac) * 60;
+  const m = Math.floor(totalSec / 60);
+  const s = Math.floor(totalSec % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function lerpAngle(a, b, t) {
+  const d = ((b - a + 540) % 360) - 180;
+  return a + d * t;
+}
+function bearing(a, b) {
+  const φ1 = a.lat * Math.PI / 180, φ2 = b.lat * Math.PI / 180;
+  const Δλ = (b.lng - a.lng) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function toPath(coords, alt = 6) {
+  return coords.map(([lat, lon]) => ({ lat, lng: lon, altitude: alt }));
+}
+function pointAt(coords, u) {
+  const t = Math.min(1, Math.max(0, u));
+  const n = coords.length;
+  if (n < 2) return { pos: { lat: coords[0][0], lng: coords[0][1], altitude: 20 }, hdg: 0 };
+  const f = t * (n - 1);
+  const i = Math.min(n - 2, Math.floor(f));
+  const local = f - i;
+  const a = coords[i], b = coords[i + 1];
+  const pos = { lat: lerp(a[0], b[0], local), lng: lerp(a[1], b[1], local), altitude: 22 };
+  const hdg = bearing({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] });
+  return { pos, hdg };
+}
+function overviewCamera(coordsList) {
+  let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+  for (const coords of coordsList) {
+    for (const [lat, lon] of coords) {
+      minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+      minLng = Math.min(minLng, lon); maxLng = Math.max(maxLng, lon);
+    }
+  }
+  const spanM = Math.hypot((maxLat - minLat) * 111320, (maxLng - minLng) * 85000);
+  return {
+    center: { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2, altitude: 0 },
+    range: Math.max(1400, spanM * 1.8),
+    tilt: 55,
+    heading: 20,
+  };
+}
+
+async function main() {
+  let Map3DElement, Marker3DElement, Polyline3DElement;
+  try {
+    ({ Map3DElement, Marker3DElement, Polyline3DElement } =
+      await google.maps.importLibrary("maps3d"));
+  } catch (err) {
+    showErr(
+      "<b>Google Maps 3D failed to load.</b><br><br>" +
+      "Enable <b>Maps JavaScript API</b> and <b>Map Tiles API</b> " +
+      "(Photorealistic 3D Maps) for this key.<br><br><code>" + String(err) + "</code>"
+    );
+    return;
+  }
+
+  const start = pointAt(DATA.emv.coords, 0);
+  const overview = overviewCamera([DATA.gmaps.coords, DATA.emv.coords]);
+
+  const map = new Map3DElement({
+    center: { lat: start.pos.lat, lng: start.pos.lng, altitude: 40 },
+    heading: start.hdg,
+    tilt: 60,
+    range: 900,
+    mode: "HYBRID",
+    gestureHandling: "GREEDY",
+  });
+  document.getElementById("map").append(map);
+
+  map.append(new Polyline3DElement({
+    path: toPath(DATA.gmaps.coords, 4),
+    strokeColor: "#d0d5db",
+    outerColor: "#222831",
+    strokeWidth: 10,
+    outerWidth: 0.35,
+    altitudeMode: "RELATIVE_TO_GROUND",
+    drawsOccludedSegments: true,
+  }));
+  map.append(new Polyline3DElement({
+    path: toPath(DATA.emv.coords, 8),
+    strokeColor: "#c084fc",
+    outerColor: "#3b0764",
+    strokeWidth: 14,
+    outerWidth: 0.4,
+    altitudeMode: "RELATIVE_TO_GROUND",
+    drawsOccludedSegments: true,
+  }));
+  for (const seg of (DATA.emv.corridor_segs || [])) {
+    map.append(new Polyline3DElement({
+      path: toPath(seg, 10),
+      strokeColor: "#f0c24b",
+      outerColor: "#5a4208",
+      strokeWidth: 18,
+      outerWidth: 0.3,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      drawsOccludedSegments: true,
+    }));
+  }
+
+  const o = DATA.scenario.origin, d = DATA.scenario.dest;
+  map.append(new Marker3DElement({
+    position: { lat: o.lat, lng: o.lon, altitude: 35 },
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "START", drawsWhenOccluded: true,
+  }));
+  map.append(new Marker3DElement({
+    position: { lat: d.lat, lng: d.lon, altitude: 35 },
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "DEST", drawsWhenOccluded: true,
+  }));
+
+  const ambG = new Marker3DElement({
+    position: pointAt(DATA.gmaps.coords, 0).pos,
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "Google Maps", drawsWhenOccluded: true,
+  });
+  const ambE = new Marker3DElement({
+    position: pointAt(DATA.emv.coords, 0).pos,
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "Best EMV", drawsWhenOccluded: true,
+  });
+  map.append(ambG); map.append(ambE);
+
+  // "emv" | "gmaps" | null (free / overview)
+  let cameraTarget = "emv";
+  let playing = true;
+  let t0 = performance.now();
+  let userRange = 900;
+  let camTransition = null; // zoom-out → across → zoom-in
+
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  const btnCamera = document.getElementById("btn-camera");
+  function setCameraTarget(target, { animate = false } = {}) {
+    const prev = cameraTarget;
+    cameraTarget = target; // "emv" | "gmaps" | null
+    if (cameraTarget === "emv") {
+      btnCamera.textContent = "Camera: Best EMV";
+      btnCamera.classList.add("on");
+    } else if (cameraTarget === "gmaps") {
+      btnCamera.textContent = "Camera: Google Maps";
+      btnCamera.classList.add("on");
+    } else {
+      btnCamera.textContent = "Camera: Free";
+      btnCamera.classList.remove("on");
+      camTransition = null;
+    }
+
+    if (
+      animate &&
+      (prev === "emv" || prev === "gmaps") &&
+      (target === "emv" || target === "gmaps") &&
+      prev !== target
+    ) {
+      const startRange = typeof map.range === "number" ? map.range : userRange;
+      const peakRange = Math.max(startRange * 3.2, overview.range * 0.75, 2200);
+      camTransition = {
+        from: prev,
+        to: target,
+        startMs: performance.now(),
+        outMs: 700,
+        acrossMs: 900,
+        inMs: 800,
+        startRange,
+        peakRange,
+        endRange: userRange,
+      };
+    }
+  }
+  setCameraTarget("emv");
+
+  // Capture zoom while chasing (button only — no auto-disable).
+  map.addEventListener("wheel", () => {
+    setTimeout(() => {
+      if (typeof map.range === "number" && map.range > 80) userRange = map.range;
+    }, 0);
+  }, { passive: true });
+
+  document.getElementById("btn-replay").onclick = () => {
+    t0 = performance.now();
+    playing = true;
+    camTransition = null;
+    document.getElementById("badge").textContent = DATA.pct_faster + "% faster on this trip";
+    setCameraTarget("emv");
+    const s = pointAt(DATA.emv.coords, 0);
+    map.center = { lat: s.pos.lat, lng: s.pos.lng, altitude: 40 };
+    map.heading = s.hdg;
+    map.tilt = 60;
+    map.range = 900;
+    userRange = 900;
+  };
+
+  // Toggle Google Maps ↔ Best EMV with zoom-out / zoom-in
+  btnCamera.onclick = () => {
+    if (camTransition) return;
+    const next = cameraTarget === "emv" ? "gmaps" : "emv";
+    setCameraTarget(next, { animate: true });
+  };
+
+  document.getElementById("btn-overview").onclick = () => {
+    camTransition = null;
+    setCameraTarget(null);
+    map.center = overview.center;
+    map.range = overview.range;
+    map.tilt = overview.tilt;
+    map.heading = overview.heading;
+    userRange = overview.range;
+  };
+
+  function applyCameraTransition(now, g, e) {
+    const tr = camTransition;
+    if (!tr) return false;
+    const elapsed = now - tr.startMs;
+    const from = tr.from === "gmaps" ? g : e;
+    const to = tr.to === "gmaps" ? g : e;
+    const total = tr.outMs + tr.acrossMs + tr.inMs;
+
+    if (elapsed >= total) {
+      camTransition = null;
+      map.center = { lat: to.pos.lat, lng: to.pos.lng, altitude: 28 };
+      map.heading = to.hdg;
+      map.tilt = 58;
+      map.range = tr.endRange;
+      return true;
+    }
+
+    if (elapsed < tr.outMs) {
+      // Phase 1: zoom out from current ambulance
+      const u = easeInOut(elapsed / tr.outMs);
+      map.center = { lat: from.pos.lat, lng: from.pos.lng, altitude: 28 + u * 80 };
+      map.heading = from.hdg;
+      map.tilt = lerp(58, 48, u);
+      map.range = lerp(tr.startRange, tr.peakRange, u);
+    } else if (elapsed < tr.outMs + tr.acrossMs) {
+      // Phase 2: fly across at altitude toward the other ambulance
+      const u = easeInOut((elapsed - tr.outMs) / tr.acrossMs);
+      map.center = {
+        lat: lerp(from.pos.lat, to.pos.lat, u),
+        lng: lerp(from.pos.lng, to.pos.lng, u),
+        altitude: 120,
+      };
+      map.heading = lerpAngle(from.hdg, to.hdg, u);
+      map.tilt = 48;
+      map.range = tr.peakRange;
+    } else {
+      // Phase 3: zoom in on the new ambulance
+      const u = easeInOut((elapsed - tr.outMs - tr.acrossMs) / tr.inMs);
+      map.center = { lat: to.pos.lat, lng: to.pos.lng, altitude: lerp(120, 28, u) };
+      map.heading = to.hdg;
+      map.tilt = lerp(48, 58, u);
+      map.range = lerp(tr.peakRange, tr.endRange, u);
+    }
+    return true;
+  }
+
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const wall = (now - t0) / 1000;
+    const eProg = Math.min(1, wall / raceDurationSec);
+    const gProg = Math.min(1, wall / (raceDurationSec * gFinishT));
+    const g = pointAt(DATA.gmaps.coords, playing ? gProg : 1);
+    const e = pointAt(DATA.emv.coords, playing ? eProg : 1);
+    ambG.position = g.pos;
+    ambE.position = e.pos;
+    document.getElementById("t-gmaps").textContent = fmt(Math.min(gMins, (playing ? gProg : 1) * gMins));
+    document.getElementById("t-emv").textContent = fmt(Math.min(eMins, (playing ? eProg : 1) * eMins));
+
+    if (applyCameraTransition(now, g, e)) {
+      // mid switch animation
+    } else if (cameraTarget) {
+      const t = cameraTarget === "gmaps" ? g : e;
+      map.center = { lat: t.pos.lat, lng: t.pos.lng, altitude: 28 };
+      map.heading = lerpAngle(Number(map.heading) || t.hdg, t.hdg, 0.14);
+      map.tilt = 58;
+      map.range = userRange;
+    }
+
+    if (!playing) return;
+    if (eProg >= 1 && gProg >= 1) {
+      playing = false;
+      document.getElementById("badge").textContent =
+        "Done · EMV " + DATA.emv.minutes + " min vs Google " + DATA.gmaps.minutes +
+        " min (" + DATA.pct_faster + "% faster)";
+    } else if (eProg >= 1 && gProg < 1) {
+      document.getElementById("badge").textContent =
+        "EMV arrived · Google still en route (" + Math.round((1 - gProg) * 100) + "% left)";
+    }
+  }
+  requestAnimationFrame(tick);
+}
+main().catch((e) => showErr(String(e)));
+</script>
+</body>
+</html>
