@@ -28,6 +28,31 @@ STREET_FEATURE_COLUMNS = [
     "osm_route_ok",
 ]
 
+# Extra OSM way tags needed for street-characteristic analysis. osmnx's defaults
+# drop bus-lane, bike-lane and parking tags, so bus-lane logic in
+# routing/graph.py and routing/emv_corridors.py can never fire on a default graph.
+RICH_WAY_TAGS = [
+    "busway",
+    "busway:left",
+    "busway:right",
+    "lanes:bus",
+    "lanes:bus:forward",
+    "lanes:bus:backward",
+    "bus:lanes",
+    "lanes:forward",
+    "lanes:backward",
+    "cycleway",
+    "cycleway:left",
+    "cycleway:right",
+    "cycleway:both",
+    "parking:lane:both",
+    "parking:lane:left",
+    "parking:lane:right",
+    "sidewalk",
+    "surface",
+    "lit",
+]
+
 # NYC boroughs bbox as (left, bottom, right, top) = (west, south, east, north) for OSMnx 2.x
 NYC_BBOX = (-74.26, 40.49, -73.70, 40.92)
 
@@ -49,9 +74,16 @@ def build_drive_graph(
     bbox: tuple[float, float, float, float],
     *,
     network_type: str = "drive",
+    rich_tags: bool = False,
 ) -> Path:
-    """Download and cache an OSM drive graph for an arbitrary bbox (W,S,E,N)."""
+    """Download and cache an OSM drive graph for an arbitrary bbox (W,S,E,N).
+
+    ``rich_tags`` additionally keeps bus-lane / bike-lane / parking-lane tags
+    (see ``RICH_WAY_TAGS``) for street-characteristic analysis.
+    """
     ox = _try_import_ox()
+    if rich_tags:
+        ox.settings.useful_tags_way = sorted(set(ox.settings.useful_tags_way) | set(RICH_WAY_TAGS))
     cache_dir = Path(out_path).resolve().parent / "osmnx_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     ox.settings.use_cache = True
@@ -64,9 +96,11 @@ def build_drive_graph(
     return out_path
 
 
-def build_nyc_drive_graph(out_path: Path | str, *, network_type: str = "drive") -> Path:
+def build_nyc_drive_graph(
+    out_path: Path | str, *, network_type: str = "drive", rich_tags: bool = False
+) -> Path:
     """Download and cache an OSM drive graph covering NYC."""
-    return build_drive_graph(out_path, NYC_BBOX, network_type=network_type)
+    return build_drive_graph(out_path, NYC_BBOX, network_type=network_type, rich_tags=rich_tags)
 
 
 # San Francisco approx bbox (W, S, E, N)

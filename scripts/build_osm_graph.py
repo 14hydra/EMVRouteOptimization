@@ -20,8 +20,13 @@ def main():
         type=Path,
         default=ROOT / "data" / "raw" / "nyc_drive.graphml",
     )
+    p.add_argument(
+        "--rich-tags",
+        action="store_true",
+        help="Also keep bus-lane / bike-lane / parking-lane tags (needed by analyze_street_characteristics.py)",
+    )
     args = p.parse_args()
-    path = build_nyc_drive_graph(args.out)
+    path = build_nyc_drive_graph(args.out, rich_tags=args.rich_tags)
     print("Wrote", path, "size_mb=", round(path.stat().st_size / 1e6, 1))
 
 

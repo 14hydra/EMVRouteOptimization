@@ -1,0 +1,22 @@
+{
+  "target": "log(EMS incident travel seconds); coefficients reported as % change per +1 SD",
+  "incidents": 22422,
+  "unique_routes": 160,
+  "cluster_unit": "route (start\u2192destination pair)",
+  "filters": {
+    "min_crow_km": 0.25,
+    "min_lion_match_share": 0.5
+  },
+  "r2_all": 0.10866363263752832,
+  "r2_borough_fe": 0.11407765869125697,
+  "median_route_lion_match": 1.0,
+  "max_vif": 7.254984741805961,
+  "edge_coverage_note": "graph bbox includes NJ/Westchester, which Centerline (NYC only) cannot match",
+  "edge_coverage": {
+    "lion_matched": 0.5448139254286849,
+    "bus_dot": 0.012580519648955946,
+    "bus_osm": 0.008379152730888496,
+    "bus_any": 0.01304821156967627
+  },
+  "routes_with_bus_lane": 40
+}
