@@ -17,6 +17,7 @@
   .card { background:var(--panel); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.12);
     border-radius:14px; padding:12px 14px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
   .card.main { max-width:560px; }
+  .card.legend-card { margin-left:auto; }  /* stay right-aligned even when the row wraps */
   .card h1 { margin:0 0 4px; font-size:15px; font-weight:700; color:#fff; }
   .sub { font-size:12px; color:#9aa3ad; margin-bottom:10px; line-height:1.4; }
   .cols { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -55,11 +56,11 @@
   <div class="top">
     <div class="card main">
       <h1>EMV race · __LABEL__</h1>
-      <div class="sub">Same travel-time model for every ambulance · Google supplies path geometry; our three routers race Google’s best alternatives</div>
+      <div class="sub">Same travel-time model for every ambulance · Google supplies path geometry; our three routers race Google’s best alternatives and a shortest-distance Dijkstra baseline</div>
       <div class="cols" id="racer-cols"></div>
       <div class="badge" id="badge">Best EMV __PCT__% faster than best Google path on our clock</div>
     </div>
-    <div class="card">
+    <div class="card legend-card">
       <div class="legend" id="legend"></div>
       <div style="margin-top:10px;font-size:12px;color:#9aa3ad;line-height:1.45">
         <b>Camera</b> cycles chase targets. All ETAs use <b>our</b> edge costs.
@@ -72,7 +73,7 @@
       <button class="on" id="btn-camera">Camera</button>
       <button id="btn-overview">Overview</button>
     </div>
-    <div class="hint">Grey = Google Maps alternatives · Purple / green / amber = our models</div>
+    <div class="hint">Grey = Google Maps alternatives · Blue = shortest-distance Dijkstra · Purple / green / amber = our models</div>
   </div>
 </div>
 
@@ -160,7 +161,7 @@ function overviewCamera(coordsList) {
 }
 
 (function buildHud() {
-  const gmaps = RACERS.filter(r => r.group === "gmaps");
+  const baselines = RACERS.filter(r => r.group === "gmaps" || r.group === "dijkstra");
   const emv = RACERS.filter(r => r.group === "emv");
   const cols = document.getElementById("racer-cols");
   function makeCol(title, list) {
@@ -181,7 +182,7 @@ function overviewCamera(coordsList) {
     }
     return wrap;
   }
-  cols.appendChild(makeCol("Google Maps paths", gmaps));
+  cols.appendChild(makeCol("Baseline routes", baselines));
   cols.appendChild(makeCol("Our models", emv));
 
   const legend = document.getElementById("legend");
@@ -197,6 +198,7 @@ const modelRate = maxTotalS / raceDurationSec;
 const chaseIds = [
   DATA.best_emv_id,
   ...RACERS.filter(r => r.group === "emv" && r.id !== DATA.best_emv_id).map(r => r.id),
+  ...RACERS.filter(r => r.group === "dijkstra").map(r => r.id),
   ...RACERS.filter(r => r.group === "gmaps").map(r => r.id),
 ].filter(Boolean);
 
@@ -260,6 +262,20 @@ async function main() {
         drawsOccludedSegments: true,
       }));
     }
+  }
+
+  // Shortest-distance baseline: thin line drawn above the others, since it
+  // shares most of its path with our routers and would otherwise be hidden.
+  for (const r of RACERS.filter(x => x.group === "dijkstra")) {
+    map.append(new Polyline3DElement({
+      path: toPath(r.coords, 12),
+      strokeColor: r.color,
+      outerColor: "#0b2a3d",
+      strokeWidth: 6,
+      outerWidth: 0.5,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      drawsOccludedSegments: true,
+    }));
   }
 
   const o = DATA.scenario.origin, dest = DATA.scenario.dest;

@@ -4,6 +4,7 @@ Build a Google Maps photorealistic-3D multi-ambulance race HTML.
 
 Racers (all timed by **our** EMV travel-time model):
   • Google Maps alternatives (up to 3) — geometry from Google, scored by us
+  • Shortest-distance Dijkstra baseline (minimizes length, ignores time)
   • MIPSSTW + MCS
   • Composite DRL
   • GBDT edge-cost router
@@ -42,6 +43,7 @@ SCENARIO = {
 }
 
 GMAPS_COLORS = ("#d0d5db", "#9aa7b5", "#6b7a8a")
+DIJKSTRA_META = {"id": "dijkstra_shortest", "label": "Shortest distance (Dijkstra)", "color": "#38bdf8"}
 MODEL_META = {
     "mipsstw_mcs": {"label": "MIPSSTW + MCS", "color": "#c084fc"},
     "composite_drl": {"label": "Composite DRL", "color": "#34d399"},
@@ -255,6 +257,47 @@ def _score_path(
     return out
 
 
+def _dijkstra_racer(G, origin, dest, o_ll: list[float], d_ll: list[float]) -> dict:
+    """Shortest-*distance* Dijkstra baseline, timed on the same EMV clock as the rest."""
+    from emvro.routing.graph import control_shortest_distance
+
+    res = control_shortest_distance(G, origin, dest)
+    if not res.ok:
+        raise RuntimeError(f"Dijkstra shortest-distance route failed: {res.meta}")
+    return _score_path(
+        G,
+        list(res.node_path),
+        origin=origin,
+        dest=dest,
+        o_ll=o_ll,
+        d_ll=d_ll,
+        racer_id=DIJKSTRA_META["id"],
+        label=DIJKSTRA_META["label"],
+        color=DIJKSTRA_META["color"],
+        group="dijkstra",
+    )
+
+
+def add_dijkstra_to_payload(payload: dict, graph_path: Path) -> dict:
+    """Add the Dijkstra baseline to a saved route JSON (graph only; no Google calls)."""
+    from emvro.routing import nearest_node, prepare_routing_graph
+
+    if any(r.get("group") == "dijkstra" for r in payload["racers"]):
+        return payload
+    sc = payload["scenario"]
+    print(f"Adding Dijkstra baseline (graph {graph_path.name}, hour {sc['hour']})…")
+    G = prepare_routing_graph(graph_path, hour=sc["hour"])
+    origin = nearest_node(G, sc["origin"]["lon"], sc["origin"]["lat"])
+    dest = nearest_node(G, sc["dest"]["lon"], sc["dest"]["lat"])
+    racer = _dijkstra_racer(G, origin, dest, _path_ll(G, [origin])[0], _path_ll(G, [dest])[0])
+    # Keep display order: Google paths, Dijkstra baseline, then our models
+    gm = [r for r in payload["racers"] if r["group"] == "gmaps"]
+    rest = [r for r in payload["racers"] if r["group"] not in ("gmaps", "dijkstra")]
+    payload["racers"] = [*gm, racer, *rest]
+    print(f"  {racer['label']}: {racer['minutes']:.2f} min, {racer['distance_km']:.2f} km on our clock")
+    return payload
+
+
 def solve_routes(graph_path: Path) -> dict:
     from emvro.routing import (
         control_google_maps,
@@ -371,6 +414,8 @@ def solve_routes(graph_path: Path) -> dict:
                 google_api_minutes=api_min,
             )
         )
+
+    racers.append(_dijkstra_racer(G, origin, dest, o_ll, d_ll))
 
     for mid, res in model_results.items():
         meta = MODEL_META[mid]
@@ -527,6 +572,8 @@ def main() -> None:
         raw = json.loads(Path(args.from_json).read_text())
         payload = normalize_payload(raw)
         print(f"Loaded routes from {args.from_json}")
+        if not any(r.get("group") == "dijkstra" for r in payload["racers"]):
+            payload = add_dijkstra_to_payload(payload, args.graph)
     else:
         payload = solve_routes(args.graph)
         meta = args.out.with_suffix(".json")
