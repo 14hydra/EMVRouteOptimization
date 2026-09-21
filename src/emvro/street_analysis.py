@@ -14,7 +14,8 @@ OSM's own ``width`` tag covers <1% of NYC edges, so it is not used.
 
 from __future__ import annotations
 
-import math
+import pickle
+import time
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,29 @@ STREET_FEATURES: dict[str, tuple[str, str]] = {
 # --------------------------------------------------------------------------
 # External data
 # --------------------------------------------------------------------------
+def _soda_page(
+    dataset_id: str,
+    params: dict[str, Any],
+    *,
+    retries: int = 8,
+    timeout: float = 180.0,
+) -> list[dict[str, Any]]:
+    """One SODA page, retrying the 5xx / timeout failures the portal returns often."""
+    url = f"{BASE}/{dataset_id}.json"
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            r.raise_for_status()
+            return r.json()
+        except (requests.HTTPError, requests.ConnectionError, requests.Timeout) as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            fatal = status is not None and status < 500 and status != 429
+            if fatal or attempt == retries - 1:
+                raise
+            time.sleep(min(60.0, 2.0 * 2**attempt))
+    raise RuntimeError("unreachable")
+
+
 def fetch_geo_dataset(
     dataset_id: str,
     out_path: Path | str,
@@ -81,12 +105,10 @@ def fetch_geo_dataset(
     offset = 0
     pbar = tqdm(desc=f"download:{dataset_id}", unit="row")
     while True:
-        params = {"$limit": page_size, "$offset": offset, "$order": ":id"}
+        params: dict[str, Any] = {"$limit": page_size, "$offset": offset, "$order": ":id"}
         if select:
             params["$select"] = select
-        r = requests.get(f"{BASE}/{dataset_id}.json", params=params, timeout=180)
-        r.raise_for_status()
-        page = r.json()
+        page = _soda_page(dataset_id, params)
         if not page:
             break
         rows.extend(page)
@@ -175,6 +197,15 @@ def _tag_contains(series: pd.Series, needles: tuple[str, ...]) -> pd.Series:
     return out & series.notna()
 
 
+_NEGATIVE_OSM = frozenset({"", "nan", "none", "no", "0", "false", "null"})
+
+
+def _tag_positive(series: pd.Series) -> pd.Series:
+    """True for OSM tags that affirm a feature (not just present-as-null/'no')."""
+    s = series.astype(str).str.strip().str.lower()
+    return series.notna() & ~s.isin(_NEGATIVE_OSM)
+
+
 def build_edge_table(
     G,
     centerline: gpd.GeoDataFrame,
@@ -218,9 +249,15 @@ def build_edge_table(
     mb = _match_edges_to_lines(edges, bl, max_dist_m=15.0, max_angle_deg=max_angle_deg)
     table["bus_dot"] = table.index.isin(mb.index)
     osm_bus = pd.Series(False, index=edges.index)
-    for col in ("busway", "busway:left", "busway:right", "lanes:bus", "lanes:bus:forward", "lanes:bus:backward"):
+    for col in ("busway", "busway:left", "busway:right"):
         if col in edges.columns:
-            osm_bus |= edges[col].notna()
+            osm_bus |= _tag_positive(edges[col])
+    for col in ("lanes:bus", "lanes:bus:forward", "lanes:bus:backward"):
+        if col in edges.columns:
+            # Numeric lane counts: any positive count counts; "0"/"no" do not.
+            raw = edges[col]
+            num = pd.to_numeric(raw, errors="coerce")
+            osm_bus |= (num.fillna(0) > 0) | (_tag_positive(raw) & num.isna())
     if "bus:lanes" in edges.columns:
         osm_bus |= _tag_contains(edges["bus:lanes"], ("designated",))
     table["bus_osm"] = osm_bus.to_numpy()
@@ -261,30 +298,111 @@ def _wmean(values: np.ndarray, weights: np.ndarray) -> float:
     return float(np.average(values[ok], weights=weights[ok]))
 
 
-def _angle_diff(a: float, b: float) -> float:
-    d = abs(a - b) % 360.0
-    return min(d, 360.0 - d)
+def prepare_graph(graph_path: Path | str, *, cache_path: Path | str | None = None):
+    """Load the rich graph with speeds / travel times / edge bearings.
 
-
-def prepare_graph(graph_path: Path | str):
-    """Load the rich graph with speeds / travel times / edge bearings."""
+    Parsing a metro-scale GraphML and re-deriving the osmnx attributes costs
+    minutes; ``cache_path`` pickles the finished graph so re-runs pay seconds.
+    The cache is invalidated by the source graph's mtime and size.
+    """
     ox = _try_import_ox()
+    graph_path = Path(graph_path)
+    stamp = (str(graph_path.resolve()), graph_path.stat().st_mtime_ns, graph_path.stat().st_size)
+
+    cache_path = Path(cache_path) if cache_path else None
+    if cache_path and cache_path.exists():
+        try:
+            blob = pickle.loads(cache_path.read_bytes())
+            if blob.get("stamp") == stamp:
+                return blob["graph"]
+        except Exception:  # noqa: BLE001 - a stale/corrupt cache must never be fatal
+            pass
+
     G = load_graph(graph_path)
     G = ox.add_edge_speeds(G)
     G = ox.add_edge_travel_times(G)
     G = ox.bearing.add_edge_bearings(G)
+
+    if cache_path:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_suffix(cache_path.suffix + ".tmp")
+        tmp.write_bytes(pickle.dumps({"stamp": stamp, "graph": G}, protocol=pickle.HIGHEST_PROTOCOL))
+        tmp.replace(cache_path)
     return G
+
+
+# Feature columns of ``build_edge_table`` consumed by ``route_characteristics``.
+_EDGE_ATTRS = (
+    "street_width_ft",
+    "travel_lanes",
+    "park_lanes",
+    "posted_speed_mph",
+    "oneway",
+    "bus_lane",
+    "bike_lane",
+    "arterial",
+    "expressway",
+    "bridge_tunnel",
+    "lion_matched",
+)
+
+
+class EdgeAttrs:
+    """Column-major view of a ``build_edge_table`` frame for per-route lookups.
+
+    ``DataFrame.reindex`` on a million-row MultiIndex costs milliseconds *per
+    route*; here each column is a float array and each ``(u, v, key)`` maps to a
+    row offset, so a route becomes one ``dict`` walk plus fancy indexing. Index
+    ``-1`` is a NaN sentinel for edges absent from the table.
+    """
+
+    __slots__ = ("pos", "cols")
+
+    def __init__(self, edge_table: pd.DataFrame):
+        self.pos = {k: i for i, k in enumerate(edge_table.index)}
+        self.cols = {}
+        for c in _EDGE_ATTRS:
+            arr = np.empty(len(edge_table) + 1, dtype=float)
+            arr[:-1] = pd.to_numeric(edge_table[c], errors="coerce").to_numpy(dtype=float)
+            arr[-1] = np.nan  # sentinel row hit by index -1
+            self.cols[c] = arr
+
+    def take(self, keys: list[tuple]) -> dict[str, np.ndarray]:
+        idx = np.fromiter((self.pos.get(k, -1) for k in keys), dtype=np.int64, count=len(keys))
+        return {c: arr[idx] for c, arr in self.cols.items()}
+
+
+def _as_edge_attrs(edge_table) -> EdgeAttrs:
+    return edge_table if isinstance(edge_table, EdgeAttrs) else EdgeAttrs(edge_table)
+
+
+def signal_nodes(G) -> set:
+    """Graph nodes tagged as traffic signals (computed once, not per route)."""
+    return {
+        n
+        for n, hw in G.nodes(data="highway")
+        if hw is not None and "traffic_signals" in str(hw)
+    }
 
 
 def route_characteristics(
     G,
-    edge_table: pd.DataFrame,
+    edge_table,
     path: list,
     crow_km: float,
     *,
     turn_threshold_deg: float = 45.0,
+    signals_set: set | None = None,
 ) -> dict[str, float]:
-    """Length-weighted street characteristics along a node path."""
+    """Length-weighted street characteristics along a node path.
+
+    ``edge_table`` may be a ``build_edge_table`` frame or a prebuilt
+    :class:`EdgeAttrs`; pass the latter when routing many paths.
+    """
+    attrs = _as_edge_attrs(edge_table)
+    if signals_set is None:
+        signals_set = signal_nodes(G)
+
     keys, lengths, bearings = [], [], []
     for u, v in zip(path[:-1], path[1:]):
         edata = G.get_edge_data(u, v)
@@ -297,47 +415,69 @@ def route_characteristics(
     if not keys:
         return {}
 
-    sub = edge_table.reindex(pd.MultiIndex.from_tuples(keys, names=edge_table.index.names))
     w = np.asarray(lengths, dtype=float)
     total_m = float(w.sum())
     if total_m <= 0:
         return {}
-    matched = sub["lion_matched"].to_numpy(dtype=bool)
+    sub = attrs.take(keys)
+    matched = sub["lion_matched"] > 0
 
     # Sharp turns between consecutive edges
-    turns = sum(
-        1
-        for a, b in zip(bearings[:-1], bearings[1:])
-        if np.isfinite(a) and np.isfinite(b) and _angle_diff(a, b) >= turn_threshold_deg
-    )
-    # Interior nodes that are signalised
-    signals = 0
-    for node in path[1:-1]:
-        hw = G.nodes[node].get("highway")
-        if hw and "traffic_signals" in str(hw):
-            signals += 1
+    b = np.asarray(bearings, dtype=float)
+    if len(b) > 1:
+        d = np.abs(b[:-1] - b[1:]) % 360.0
+        d = np.minimum(d, 360.0 - d)
+        turns = int(np.count_nonzero(d >= turn_threshold_deg))
+    else:
+        turns = 0
+    signals = sum(1 for node in path[1:-1] if node in signals_set)
 
     km = total_m / 1000.0
-    out = {
+    return {
         "path_km": km,
         "n_edges": float(len(keys)),
         "lion_match_share": float(w[matched].sum() / total_m),
-        "street_width_ft": _wmean(sub["street_width_ft"].to_numpy(float), w),
-        "travel_lanes": _wmean(sub["travel_lanes"].to_numpy(float), w),
-        "park_lanes": _wmean(sub["park_lanes"].to_numpy(float), w),
-        "posted_speed_mph": _wmean(sub["posted_speed_mph"].to_numpy(float), w),
-        "oneway_share": _wmean(sub["oneway"].to_numpy(float), w),
-        "bus_lane_share": _wmean(sub["bus_lane"].to_numpy(float), w),
-        "bike_lane_share": _wmean(sub["bike_lane"].to_numpy(float), w),
-        "arterial_share": _wmean(sub["arterial"].to_numpy(float), w),
-        "expressway_share": _wmean(sub["expressway"].to_numpy(float), w),
-        "bridge_tunnel_share": _wmean(sub["bridge_tunnel"].to_numpy(float), w),
+        "street_width_ft": _wmean(sub["street_width_ft"], w),
+        "travel_lanes": _wmean(sub["travel_lanes"], w),
+        "park_lanes": _wmean(sub["park_lanes"], w),
+        "posted_speed_mph": _wmean(sub["posted_speed_mph"], w),
+        "oneway_share": _wmean(sub["oneway"], w),
+        "bus_lane_share": _wmean(sub["bus_lane"], w),
+        "bike_lane_share": _wmean(sub["bike_lane"], w),
+        "arterial_share": _wmean(sub["arterial"], w),
+        "expressway_share": _wmean(sub["expressway"], w),
+        "bridge_tunnel_share": _wmean(sub["bridge_tunnel"], w),
         "signals_per_km": signals / km if km > 0 else np.nan,
         "turns_per_km": turns / km if km > 0 else np.nan,
         "block_length_m": total_m / len(keys),
         "circuity": km / crow_km if crow_km and crow_km > 0.05 else np.nan,
     }
-    return out
+
+
+def route_paths_for_nodes(
+    G,
+    pairs: list[tuple],
+    *,
+    weight: str = "travel_time",
+    show_progress: bool = True,
+) -> dict[tuple, list]:
+    """Shortest node path for each unique ``(origin, dest)`` node pair.
+
+    ``nx.shortest_path`` runs a bidirectional Dijkstra, which on the NYC drive
+    graph costs ~8 ms for an EMS-length trip. Solving a whole Dijkstra tree per
+    origin instead costs ~440 ms, so it only wins for origins with dozens of
+    destinations — far more than dispatch data produces. Dedupe plus the caller's
+    path cache are what actually keep this cheap.
+    """
+    paths: dict[tuple, list] = {}
+    todo = [(o, d) for o, d in dict.fromkeys(pairs) if o != d]
+    it = tqdm(todo, desc="routing", unit="od") if show_progress else todo
+    for o, d in it:
+        try:
+            paths[(o, d)] = nx.shortest_path(G, o, d, weight=weight)
+        except (nx.NetworkXNoPath, nx.NodeNotFound):
+            continue
+    return paths
 
 
 def route_table_for_od(
@@ -346,33 +486,56 @@ def route_table_for_od(
     od: pd.DataFrame,
     *,
     show_progress: bool = True,
+    path_cache: Path | str | None = None,
 ) -> pd.DataFrame:
     """Route each unique (start, dest) node pair once; return features per ``od_id``.
 
     ``od`` needs columns od_id, start_lat, start_lon, dest_lat, dest_lon, crow_km.
+    ``path_cache`` persists the node paths (which depend only on the graph, not
+    on ``edge_table``), so re-running after an edge-table change skips routing.
     """
     ox = _try_import_ox()
-    o_nodes = ox.nearest_nodes(G, od["start_lon"].to_numpy(), od["start_lat"].to_numpy())
-    d_nodes = ox.nearest_nodes(G, od["dest_lon"].to_numpy(), od["dest_lat"].to_numpy())
-    od = od.assign(o_node=o_nodes, d_node=d_nodes)
+    # One nearest_nodes call: each call rebuilds a KD-tree over every graph node.
+    n = len(od)
+    xs = np.concatenate([od["start_lon"].to_numpy(float), od["dest_lon"].to_numpy(float)])
+    ys = np.concatenate([od["start_lat"].to_numpy(float), od["dest_lat"].to_numpy(float)])
+    nodes = list(ox.nearest_nodes(G, xs, ys))
+    od = od.assign(o_node=nodes[:n], d_node=nodes[n:])
 
+    pairs = list(zip(od["o_node"], od["d_node"]))
+
+    cached: dict[tuple, list] = {}
+    cache_file = Path(path_cache) if path_cache else None
+    if cache_file and cache_file.exists():
+        try:
+            cached = pickle.loads(cache_file.read_bytes())
+        except Exception:  # noqa: BLE001
+            cached = {}
+    todo = [p for p in dict.fromkeys(pairs) if p not in cached and p[0] != p[1]]
+    if todo:
+        cached.update(route_paths_for_nodes(G, todo, show_progress=show_progress))
+        if cache_file:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+            tmp.write_bytes(pickle.dumps(cached, protocol=pickle.HIGHEST_PROTOCOL))
+            tmp.replace(cache_file)
+
+    attrs = _as_edge_attrs(edge_table)
+    signals_set = signal_nodes(G)
+    feats_by_pair: dict[tuple, dict[str, float]] = {}
     rows: list[dict[str, Any]] = []
-    cache: dict[tuple, dict[str, float]] = {}
-    it = od.itertuples(index=False)
-    if show_progress:
-        it = tqdm(it, total=len(od), desc="route_features", unit="od")
-    for r in it:
+    for r in od.itertuples(index=False):
         key = (r.o_node, r.d_node)
-        if key not in cache:
-            feats: dict[str, float] = {}
-            if r.o_node != r.d_node:
-                try:
-                    path = nx.shortest_path(G, r.o_node, r.d_node, weight="travel_time")
-                    feats = route_characteristics(G, edge_table, path, float(r.crow_km))
-                except (nx.NetworkXNoPath, nx.NodeNotFound):
-                    feats = {}
-            cache[key] = feats
-        feats = dict(cache[key])
+        if key not in feats_by_pair:
+            path = cached.get(key)
+            feats_by_pair[key] = (
+                route_characteristics(
+                    G, attrs, path, float(r.crow_km), signals_set=signals_set
+                )
+                if path
+                else {}
+            )
+        feats = dict(feats_by_pair[key])
         if "path_km" in feats:  # circuity depends on this row's own crow-flies distance
             feats["circuity"] = feats["path_km"] / r.crow_km if r.crow_km > 0.05 else np.nan
         rows.append({"od_id": r.od_id, **feats})

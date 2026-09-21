@@ -44,19 +44,41 @@ CONTROLS = ["log_crow_km", "is_rush", "is_night", "is_weekend", "wx_is_precip", 
 # --------------------------------------------------------------------------
 # Data
 # --------------------------------------------------------------------------
+def _file_stamp(path: Path) -> tuple:
+    if not path.exists():
+        return (str(path), None, None)
+    st = path.stat()
+    return (str(path.resolve()), int(st.st_mtime_ns), int(st.st_size))
+
+
 def load_edge_table(args) -> tuple[object, pd.DataFrame]:
-    G = prepare_graph(args.graph)
+    G = prepare_graph(args.graph, cache_path=args.processed / "street_graph_prepared.pkl")
     cache = args.processed / "street_edge_table.pkl"
-    if cache.exists() and not args.refresh:
-        return G, pickle.loads(cache.read_bytes())
+    centerline_path = args.raw / "centerline.geojson"
+    bus_path = args.raw / "bus_lanes_local.geojson"
+    stamp = (
+        _file_stamp(Path(args.graph)),
+        _file_stamp(centerline_path),
+        _file_stamp(bus_path),
+    )
+    if cache.exists() and not getattr(args, "refresh", False):
+        try:
+            blob = pickle.loads(cache.read_bytes())
+            if isinstance(blob, dict) and blob.get("stamp") == stamp and "table" in blob:
+                return G, blob["table"]
+            if not isinstance(blob, dict):
+                # Legacy bare-DataFrame cache from earlier runs.
+                return G, blob
+        except Exception:
+            pass
 
     centerline = fetch_geo_dataset(
-        CENTERLINE_ID, args.raw / "centerline.geojson", select=CENTERLINE_SELECT
+        CENTERLINE_ID, centerline_path, select=CENTERLINE_SELECT
     )
-    bus = fetch_geo_dataset(BUS_LANES_ID, args.raw / "bus_lanes_local.geojson")
+    bus = fetch_geo_dataset(BUS_LANES_ID, bus_path)
     table = build_edge_table(G, centerline, bus)
     args.processed.mkdir(parents=True, exist_ok=True)
-    cache.write_bytes(pickle.dumps(table))
+    cache.write_bytes(pickle.dumps({"stamp": stamp, "table": table}, protocol=pickle.HIGHEST_PROTOCOL))
     return G, table
 
 
@@ -69,7 +91,10 @@ def build_dataset(args, G, edge_table) -> pd.DataFrame:
     od = df.drop_duplicates("od_id")[["od_id", *coord_cols, "crow_flies_km"]].rename(
         columns={"crow_flies_km": "crow_km"}
     )
-    routes = route_table_for_od(G, edge_table, od)
+    print(f"routing {len(od)} unique OD pairs for {len(df)} incidents")
+    routes = route_table_for_od(
+        G, edge_table, od, path_cache=args.processed / "street_route_paths.pkl"
+    )
     df = df.merge(routes, on="od_id", how="left")
 
     df["log_travel_s"] = np.log(df["travel_seconds"])
@@ -108,10 +133,16 @@ def fit_ols(df: pd.DataFrame, z: pd.DataFrame, *, borough_fe: bool):
 
     data = pd.concat([df.reset_index(drop=True), z.reset_index(drop=True)], axis=1)
     terms = list(z.columns) + CONTROLS
-    if data["primary_origin_layer"].nunique() > 1:
-        terms.append("C(primary_origin_layer)")
+    cats = ["primary_origin_layer"] if data["primary_origin_layer"].nunique() > 1 else []
     if borough_fe:
-        terms.append("C(borough)")
+        cats.append("borough")
+    terms += [f"C({c})" for c in cats]
+
+    # statsmodels would silently drop incomplete rows, desynchronising the
+    # cluster `groups` array and the residuals the partial-effect plots reuse.
+    used = ["log_travel_s", "od_id", *z.columns, *CONTROLS, *cats]
+    data = data.dropna(subset=used).reset_index(drop=True)
+
     model = smf.ols("log_travel_s ~ " + " + ".join(terms), data=data)
     groups = pd.factorize(data["od_id"])[0]
     return model.fit(cov_type="cluster", cov_kwds={"groups": groups}), data
@@ -131,6 +162,8 @@ def coef_table(res, feats: list[str], spec: str) -> pd.DataFrame:
                 "label": STREET_FEATURES[f][0],
                 "group": STREET_FEATURES[f][1],
                 "coef_log": b,
+                "coef_lo": lo,
+                "coef_hi": hi,
                 "pct_change": 100 * (np.exp(b) - 1),
                 "pct_lo": 100 * (np.exp(lo) - 1),
                 "pct_hi": 100 * (np.exp(hi) - 1),
@@ -164,7 +197,7 @@ def main():
     p.add_argument("--out", type=Path, default=ROOT / "data" / "figures" / "street_characteristics")
     p.add_argument("--min-crow-km", type=float, default=0.25)
     p.add_argument("--min-lion-share", type=float, default=0.5)
-    p.add_argument("--refresh", action="store_true", help="Rebuild the cached OSM↔Centerline edge table")
+    p.add_argument("--refresh", dest="refresh", action="store_true", help="Rebuild the cached OSM↔Centerline edge table")
     p.add_argument("--no-plots", action="store_true")
     args = p.parse_args()
 
@@ -215,7 +248,7 @@ def main():
 
     routes = df.drop_duplicates("od_id")
     summary = {
-        "target": "log(EMS incident travel seconds); coefficients reported as % change per +1 SD",
+        "target": "log(EMS travel seconds); coefficients = adjusted % association per +1 SD (clustered by route; exploratory)",
         "incidents": int(len(df)),
         "unique_routes": int(routes["od_id"].nunique()),
         "cluster_unit": "route (start→destination pair)",
