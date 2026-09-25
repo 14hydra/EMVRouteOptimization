@@ -95,6 +95,30 @@ PYTHONPATH=src python scripts/build_master_map.py
 # City buttons: NYC | SF | Both · Case buttons: Examples | Dataset | ROW wins
 ```
 
+## Patrol posts & loops (pre-positioning)
+
+The inferred-start work answers *where a unit probably started*. This answers the mentor
+question *where should units wait so the next call is closer* — historical incident density
+becomes patrol posts plus one short loop per unit, drawn from the **same** inferred layers
+(EMS stations, hospital bays, synthetic CSLs) used as OD starts.
+
+```bash
+PYTHONPATH=src python scripts/build_patrol_routes.py                       # NYC + OSM graph (~40 s)
+PYTHONPATH=src python scripts/build_patrol_routes.py --objective coverage  # max share within 8 min
+PYTHONPATH=src python scripts/build_patrol_routes.py --no-graph            # crow-flies only (~2 s)
+PYTHONPATH=src python scripts/build_patrol_routes.py --demo                # synthetic demand, no data needed
+# open data/figures/patrol/patrol_map.html
+```
+
+| Objective | Meaning |
+|---|---|
+| `response_time` (default) | p-median: minimize demand-weighted expected EMV travel time |
+| `coverage` | maximal covering: maximize demand reachable within `--threshold-min` |
+
+Code: `src/emvro/patrol.py`. Outputs in `data/figures/patrol/`: `patrol_posts.csv`,
+`patrol_segments.csv`, `patrol_demand_cells.csv`, `patrol_map.html`, `summary.json`.
+See `docs/patrol_routes.md`.
+
 **Multi-city training data** (SF EMS CAD + NYC):
 
 ```bash
