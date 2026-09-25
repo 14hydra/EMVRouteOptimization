@@ -1,4 +1,4 @@
-# Multi-city EMS / ambulance datasets
+# Multi-city fire / EMV datasets
 
 Public CAD sources that can expand training beyond NYC. Prefer cities with
 **coordinates + response→on-scene timestamps** (or clear dispatch→arrival).

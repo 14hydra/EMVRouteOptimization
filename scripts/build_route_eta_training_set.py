@@ -2,8 +2,9 @@
 """
 Build route-level EMV travel-time training data (known OD → high-R² model).
 
-Uses EMS/hospital origins × ZIP destinations, OSM network civilian times, and
-an EMV/congestion/weather mapping calibrated to EMS-like magnitudes.
+Default scope is **firetrucks**: FDNY firehouse origins × ZIP destinations,
+OSM civilian network times, and an EMV/congestion/weather mapping calibrated to
+FDNY-like magnitudes.
 """
 
 from __future__ import annotations
@@ -35,6 +36,11 @@ def main():
         type=Path,
         default=ROOT / "data" / "raw" / "nyc_drive.graphml",
     )
+    p.add_argument(
+        "--legacy-ems",
+        action="store_true",
+        help="Use EMS stations + hospital bays as origins instead of firehouses",
+    )
     args = p.parse_args()
     args.processed.mkdir(parents=True, exist_ok=True)
     args.samples.mkdir(parents=True, exist_ok=True)
@@ -42,19 +48,25 @@ def main():
     if not args.osm_graph.exists():
         raise SystemExit(f"Missing OSM graph at {args.osm_graph}; run scripts/build_osm_graph.py")
 
-    stations = prepare_depots(pd.read_csv(args.raw / "ems_stations.csv"), source_label="ems_station")
-    hospitals = prepare_depots(
-        filter_hospital_bays(pd.read_csv(args.raw / "hospital_bays.csv")),
-        source_label="hospital_bay",
-    )
-    origins = pd.concat([stations, hospitals], ignore_index=True)
+    if args.legacy_ems:
+        stations = prepare_depots(
+            pd.read_csv(args.raw / "ems_stations.csv"), source_label="ems_station"
+        )
+        hospitals = prepare_depots(
+            filter_hospital_bays(pd.read_csv(args.raw / "hospital_bays.csv")),
+            source_label="hospital_bay",
+        )
+        origins = pd.concat([stations, hospitals], ignore_index=True)
+        scope = "ambulances_legacy"
+    else:
+        origins = prepare_depots(
+            pd.read_csv(args.raw / "fdny_firehouses.csv"), source_label="fdny_firehouse"
+        )
+        scope = "firetrucks"
 
     modzcta = pd.read_csv(args.raw / "modzcta.csv", low_memory=False)
     centroids = zip_centroids_from_modzcta(modzcta)
-    destinations = centroids.rename(columns={"latitude": "dest_lat", "longitude": "dest_lon"})
-    if "dest_lat" not in destinations.columns:
-        destinations = centroids.rename(columns={"dest_lat": "dest_lat", "dest_lon": "dest_lon"})
-    # zip_centroids_from_modzcta already uses dest_lat/dest_lon
+    destinations = centroids.copy()
     if "dest_lat" not in destinations.columns and {"lat", "lon"} <= set(centroids.columns):
         destinations = centroids.assign(dest_lat=centroids["lat"], dest_lon=centroids["lon"])
 
@@ -75,26 +87,24 @@ def main():
     )
     out = args.processed / "route_eta_training.csv"
     feats.to_csv(out, index=False)
-    feats.head(min(200, len(feats))).to_csv(args.samples / "route_eta_training_sample.csv", index=False)
+    feats.head(min(200, len(feats))).to_csv(
+        args.samples / "route_eta_training_sample.csv", index=False
+    )
 
     summary = {
-        "rows": int(len(feats)),
-        "median_travel_s": float(feats["travel_seconds"].median()) if len(feats) else None,
-        "median_civilian_s": float(feats["civilian_network_s"].median()) if len(feats) else None,
-        "median_emv_speedup": float(
-            (feats["civilian_network_s"] / feats["travel_seconds"]).median()
-        )
-        if len(feats)
-        else None,
-        "note": (
-            "Known-OD route ETA labels from OSM network + EMV/congestion/weather mapping. "
-            "Use this for optimizer travel-time scoring (R² target ≥ 0.8). "
-            "CAD incident-level model remains separate and is noise-limited."
-        ),
-        "output": str(out),
+        "scope": scope,
+        "n_origins": int(len(origins)),
+        "origin_layers": origins["depot_layer"].value_counts().to_dict()
+        if "depot_layer" in origins.columns
+        else {},
+        "n_pairs": int(len(feats)),
+        "out": str(out),
     }
-    (args.processed / "route_eta_training_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    (args.processed / "route_eta_training_summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n"
+    )
     print(json.dumps(summary, indent=2))
+    print("Wrote", out)
 
 
 if __name__ == "__main__":

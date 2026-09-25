@@ -13,9 +13,42 @@ from tqdm import tqdm
 BASE = "https://data.cityofnewyork.us/resource"
 
 DATASETS: dict[str, dict[str, Any]] = {
+    # Primary CAD extract — fire apparatus / firetrucks.
+    "fdny_incidents": {
+        "id": "8m42-w767",
+        "description": "FDNY Fire Incident Dispatch Data (no unit start GPS)",
+        "default_select": (
+            "starfire_incident_id,incident_datetime,alarm_box_borough,alarm_box_number,"
+            "alarm_box_location,incident_borough,zipcode,"
+            "incident_classification,incident_classification_group,"
+            "dispatch_response_seconds_qy,incident_response_seconds_qy,"
+            "incident_travel_tm_seconds_qy,valid_incident_rspns_time_indc,"
+            "engines_assigned_quantity,ladders_assigned_quantity,"
+            "other_units_assigned_quantity,highest_alarm_level"
+        ),
+        "datetime_col": "incident_datetime",
+    },
+    "fdny_firehouses": {
+        "id": "hc8x-tcnd",
+        "description": "FDNY Firehouse Listing (preferred firetruck depots)",
+    },
+    "alarm_boxes": {
+        "id": "v57i-gtxb",
+        "description": "In-Service Alarm Box Locations (intersection proxies for on-road posts / CSLs)",
+    },
+    "modzcta": {
+        "id": "pri4-ifjk",
+        "description": "Modified Zip Code Tabulation Areas (incident ZIP geometry)",
+    },
+    "lion": {
+        "id": "2v4z-66xt",
+        "description": "NYC LION street centerline database",
+        "note": "Large geospatial asset; prefer DCP download or GeoJSON export when available.",
+    },
+    # Legacy EMS layers kept for optional side comparisons only — not used by default.
     "ems_incidents": {
         "id": "76xm-jjuj",
-        "description": "EMS Incident Dispatch Data (no unit start GPS)",
+        "description": "EMS Incident Dispatch Data (legacy; project scope is firetrucks)",
         "default_select": (
             "incident_id,incident_datetime,initial_call_type,final_call_type,"
             "initial_severity_level_code,final_severity_level_code,"
@@ -23,14 +56,11 @@ DATASETS: dict[str, dict[str, Any]] = {
             "incident_travel_tm_seconds_qy,borough,incident_dispatch_area,"
             "zipcode,held_indicator,valid_incident_rspns_time_indc"
         ),
-    },
-    "fdny_firehouses": {
-        "id": "hc8x-tcnd",
-        "description": "FDNY Firehouse Listing (fallback depot candidates)",
+        "datetime_col": "incident_datetime",
     },
     "ems_stations": {
         "id": "ji82-xba5",
-        "description": "City Facilities Database — EMS/ambulance stations (preferred depots)",
+        "description": "City Facilities Database — EMS/ambulance stations (legacy)",
         "default_where": (
             "upper(factype) in ('AMBULANCE STATION','EMERGENCY MEDICAL STATION','EMERGENCY MEDICL STN') "
             "OR upper(facname) like '%EMS STATION%'"
@@ -42,28 +72,12 @@ DATASETS: dict[str, dict[str, Any]] = {
     },
     "hospital_bays": {
         "id": "ji82-xba5",
-        "description": (
-            "City Facilities — HOSPITAL / ACUTE CARE HOSPITAL only "
-            "(H+H + voluntary ED ambulance receiving / staging bays)"
-        ),
+        "description": "City Facilities — HOSPITAL / ACUTE CARE HOSPITAL (legacy EMS staging)",
         "default_where": "upper(factype) in ('HOSPITAL','ACUTE CARE HOSPITAL')",
         "default_select": (
             "uid,facname,factype,facsubgrp,address,boro,borocode,zipcode,"
             "latitude,longitude,opname,optype,overagency"
         ),
-    },
-    "alarm_boxes": {
-        "id": "v57i-gtxb",
-        "description": "In-Service Alarm Box Locations (intersection proxies for synthetic CSLs)",
-    },
-    "modzcta": {
-        "id": "pri4-ifjk",
-        "description": "Modified Zip Code Tabulation Areas (incident ZIP geometry)",
-    },
-    "lion": {
-        "id": "2v4z-66xt",
-        "description": "NYC LION street centerline database",
-        "note": "Large geospatial asset; prefer DCP download or GeoJSON export when available.",
     },
 }
 
@@ -104,8 +118,8 @@ def download_dataset(
 ) -> Path:
     """Download a named dataset to CSV under out_dir. Returns output path.
 
-    For EMS incidents, prefer ``start``/``end`` ISO datetimes (full calendar days)
-    over a bare ``limit`` on newest rows — the latter truncates overnight hours.
+    For incident CAD extracts, prefer ``start``/``end`` ISO datetimes (full calendar
+    days) over a bare ``limit`` on newest rows — the latter truncates overnight hours.
     """
     if key not in DATASETS:
         raise KeyError(f"Unknown dataset key {key!r}. Known: {sorted(DATASETS)}")
@@ -119,28 +133,26 @@ def download_dataset(
     offset = 0
     target = limit if limit is not None else 10**12
 
-    # Optional year / datetime window filter for EMS incidents
+    dt_col = meta.get("datetime_col", "incident_datetime")
+    incident_keys = {"fdny_incidents", "ems_incidents"}
     where_parts = []
     if meta.get("default_where"):
         where_parts.append(f"({meta['default_where']})")
     if where:
         where_parts.append(f"({where})")
-    if start and end and key == "ems_incidents":
-        where_parts.append(
-            f"(incident_datetime between '{start}' and '{end}')"
-        )
-    elif years and key == "ems_incidents":
+    if start and end and key in incident_keys:
+        where_parts.append(f"({dt_col} between '{start}' and '{end}')")
+    elif years and key in incident_keys:
         year_clauses = [
-            f"incident_datetime between '{y}-01-01T00:00:00' and '{y}-12-31T23:59:59'"
+            f"{dt_col} between '{y}-01-01T00:00:00' and '{y}-12-31T23:59:59'"
             for y in years
         ]
         where_parts.append("(" + " OR ".join(year_clauses) + ")")
     where_q = " AND ".join(where_parts) if where_parts else None
 
-    # Date windows: ascending so overnight hours are not clipped by DESC+limit.
     order = None
-    if key == "ems_incidents":
-        order = "incident_datetime ASC" if (start and end) else "incident_datetime DESC"
+    if key in incident_keys:
+        order = f"{dt_col} ASC" if (start and end) else f"{dt_col} DESC"
 
     pbar = tqdm(total=min(target, 50_000) if limit else None, desc=f"download:{key}", unit="row")
     while len(rows) < target:

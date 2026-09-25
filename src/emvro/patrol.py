@@ -13,7 +13,7 @@ Historical EMS incidents are binned into a spatial demand grid::
                severity-weighted)
     t(p, c)  = EMV travel seconds from patrol post p to cell c
     P        = the k posts we choose out of the candidate locations
-               (inferred EMS stations / hospital bays / synthetic CSLs /
+               (inferred FDNY firehouses / synthetic CSLs /
                 high-demand cell anchors)
 
     objective="response_time"   minimize  E[T] = Σ_c w_c · min_{p∈P} t(p,c) / Σ_c w_c
@@ -52,7 +52,7 @@ EARTH_R_KM = 6371.0
 # Candidate layers that can host a fleet home base / patrol anchor (a unit can
 # actually be relieved, restocked and crew-changed there). Synthetic CSLs and
 # demand-cell anchors are on-road posts only.
-ANCHOR_LAYERS = ("ems_station", "hospital_bay")
+ANCHOR_LAYERS = ("fdny_firehouse",)
 
 TimeFn = Callable[[float, float, float, float], float]
 

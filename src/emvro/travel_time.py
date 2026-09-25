@@ -1,11 +1,11 @@
 """Travel-time prediction features and training helpers (slides Step 4).
 
-Even without known ambulance GPS origins, we can supervise on the real
-`incident_travel_tm_seconds_qy` label using:
+Even without known firetruck GPS origins, we can supervise on the real
+FDNY CAD travel-time label using:
 
 1. Destination features (ZIP centroid, borough, demand)
 2. Temporal / call-type features from CAD
-3. Multi-candidate origin distances (EMS station, hospital bay, CSL)
+3. Multi-candidate origin distances (firehouse, CSL; legacy EMS optional)
 4. A primary inferred origin (hybrid rule) for crow-flies / bearing
 
 This matches the slide plan: segment-aggregated gradient boosting that scores
@@ -52,12 +52,25 @@ def _nearest_km(depots: pd.DataFrame | None, prefer_b, dest_lon, dest_lat):
     return dist, chosen
 
 
+def build_firetruck_depot_layers(
+    firehouses: pd.DataFrame | None,
+    csl_points: pd.DataFrame | None,
+) -> dict[str, pd.DataFrame]:
+    """Firetruck-only staging layers (firehouses + on-road CSLs)."""
+    layers: dict[str, pd.DataFrame] = {}
+    if firehouses is not None and len(firehouses):
+        layers["fdny_firehouse"] = prepare_depots(firehouses, source_label="fdny_firehouse")
+    if csl_points is not None and len(csl_points):
+        layers["csl"] = prepare_depots(csl_points, source_label="csl")
+    return layers
+
+
 def build_ambulance_depot_layers(
     ems_stations: pd.DataFrame | None,
     hospital_bays: pd.DataFrame | None,
     csl_points: pd.DataFrame | None,
 ) -> dict[str, pd.DataFrame]:
-    """Ambulance-only staging layers (no fire trucks / firehouses)."""
+    """Legacy ambulance staging layers (kept for optional side comparisons)."""
     layers: dict[str, pd.DataFrame] = {}
     if ems_stations is not None and len(ems_stations):
         layers["ems_station"] = prepare_depots(ems_stations, source_label="ems_station")
@@ -74,19 +87,34 @@ def build_travel_time_feature_table(
     incidents: pd.DataFrame,
     zip_centroids: pd.DataFrame,
     *,
+    firehouses: pd.DataFrame | None = None,
+    csl_points: pd.DataFrame | None = None,
     ems_stations: pd.DataFrame | None = None,
     hospital_bays: pd.DataFrame | None = None,
-    csl_points: pd.DataFrame | None = None,
     od_pairs: pd.DataFrame | None = None,
+    scope: str = "firetrucks",
 ) -> pd.DataFrame:
     """
-    One row per EMS incident with travel-time label + features.
+    One row per incident with travel-time label + features.
 
-    Label: travel_seconds (ambulance assignment → on-scene).
-    Origins are uncertain, so we include distances to multiple ambulance
-    staging hypotheses instead of pretending we know the true start.
+    Label: travel_seconds (assignment → on-scene).
+    Origins are uncertain, so we include distances to multiple staging hypotheses
+    instead of pretending we know the true start.
+
+    Default ``scope='firetrucks'`` uses firehouses + CSLs. Pass ``scope='ambulances'``
+    for the legacy EMS station / hospital bay feature set.
     """
-    layers = build_ambulance_depot_layers(ems_stations, hospital_bays, csl_points)
+    if scope == "ambulances":
+        layers = build_ambulance_depot_layers(ems_stations, hospital_bays, csl_points)
+    else:
+        layers = build_firetruck_depot_layers(firehouses, csl_points)
+        # Optional legacy layers only if explicitly provided alongside fire scope.
+        if ems_stations is not None and len(ems_stations):
+            layers["ems_station"] = prepare_depots(ems_stations, source_label="ems_station")
+        if hospital_bays is not None and len(hospital_bays):
+            hb = filter_hospital_bays(hospital_bays)
+            if len(hb):
+                layers["hospital_bay"] = prepare_depots(hb, source_label="hospital_bay")
 
     inc = incidents.copy()
     rename = {
@@ -157,11 +185,15 @@ def build_travel_time_feature_table(
         dest_lat_f = float(dest_lat)
         dest_lon_f = float(dest_lon)
 
+        firehouse_km, firehouse = _nearest_km(
+            layers.get("fdny_firehouse"), prefer_b, dest_lon_f, dest_lat_f
+        )
         station_km, station = _nearest_km(layers.get("ems_station"), prefer_b, dest_lon_f, dest_lat_f)
         hospital_km, hospital = _nearest_km(layers.get("hospital_bay"), prefer_b, dest_lon_f, dest_lat_f)
         csl_km, csl = _nearest_km(layers.get("csl"), prefer_b, dest_lon_f, dest_lat_f)
 
         candidates = {
+            "fdny_firehouse": firehouse_km,
             "ems_station": station_km,
             "hospital_bay": hospital_km,
             "csl": csl_km,
@@ -179,20 +211,25 @@ def build_travel_time_feature_table(
         start_lon = np.nan
         primary_layer = nearest_layer
         crow = nearest_km
+        allowed_layers = {"fdny_firehouse", "csl", "ems_station", "hospital_bay"}
         if primary is not None:
             iid = getattr(rec, "incident_id", None)
             hit = primary[primary["incident_id"].astype(str) == str(iid)]
-            # Only keep ambulance layers from od_pairs
             if len(hit):
                 layer = str(hit.iloc[0].get("depot_layer") or "")
-                if layer in {"ems_station", "hospital_bay", "csl"}:
+                if layer in allowed_layers:
                     start_lat = float(hit.iloc[0]["start_lat"])
                     start_lon = float(hit.iloc[0]["start_lon"])
                     primary_layer = layer
                     crow = float(hit.iloc[0].get("crow_flies_km") or nearest_km)
 
         if start_lat != start_lat:
-            chosen = {"ems_station": station, "hospital_bay": hospital, "csl": csl}.get(nearest_layer)
+            chosen = {
+                "fdny_firehouse": firehouse,
+                "ems_station": station,
+                "hospital_bay": hospital,
+                "csl": csl,
+            }.get(nearest_layer)
             if chosen is not None:
                 start_lat = float(chosen["start_lat"])
                 start_lon = float(chosen["start_lon"])
@@ -235,8 +272,9 @@ def build_travel_time_feature_table(
                 "primary_origin_layer": primary_layer,
                 "crow_flies_km": crow,
                 "bearing_deg": bearing,
-                "station_km": station_km,
-                "hospital_km": hospital_km,
+                "firehouse_km": firehouse_km,
+                "station_km": station_km,  # legacy EMS; NaN under firetruck scope
+                "hospital_km": hospital_km,  # legacy EMS; NaN under firetruck scope
                 "csl_km": csl_km,
                 "nearest_origin_km": nearest_km,
                 "origin_spread_km": spread_km,
@@ -252,7 +290,12 @@ def build_travel_time_feature_table(
                 "final_call_type": str(getattr(rec, "final_call_type", "") or ""),
                 "held_indicator": 1 if held == "Y" else 0,
                 "valid_travel": 1 if valid == "Y" else 0,
-                # Ambiguity: how much do station vs CSL disagree? High = origin uncertain
+                # Ambiguity: quarters vs on-road post. High = origin uncertain.
+                "firehouse_minus_csl_km": (
+                    firehouse_km - csl_km
+                    if firehouse_km == firehouse_km and csl_km == csl_km
+                    else np.nan
+                ),
                 "station_minus_csl_km": (
                     station_km - csl_km if station_km == station_km and csl_km == csl_km else np.nan
                 ),
@@ -265,11 +308,14 @@ def build_travel_time_feature_table(
 FEATURE_COLUMNS = [
     "crow_flies_km",
     "bearing_deg",
-    "station_km",
-    "hospital_km",
+    "firehouse_km",
     "csl_km",
     "nearest_origin_km",
     "origin_spread_km",
+    "firehouse_minus_csl_km",
+    # Legacy EMS columns kept for optional scope='ambulances' retrain only
+    "station_km",
+    "hospital_km",
     "station_minus_csl_km",
     "zip_incident_volume",
     "dispatch_wait_seconds",

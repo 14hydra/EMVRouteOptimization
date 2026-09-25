@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Use Google Maps as the civilian control model to label which EMS trips
-could realistically have left an official depot vs must have been on-road.
+Use Google Maps as the civilian control model to label which FDNY trips
+could realistically have left a firehouse vs must have been on-road.
 
 For each OD row:
   1) Query Google Maps driving time from nearest static depot → destination
   2) Optionally from nearest CSL → destination
-  3) Compare to observed incident_travel_tm_seconds_qy
+  3) Compare to observed incident travel seconds
 
 If even an EMV-speedup of the station GMaps ETA is still slower than the
 observed travel time, classify as on_road_required; else station_plausible.
@@ -39,24 +39,24 @@ def _maybe_csv(path: Path) -> pd.DataFrame | None:
     return pd.read_csv(path, low_memory=False) if path.exists() else None
 
 
-def _prepare_static_and_csl(raw: Path, processed: Path):
+def _prepare_static_and_csl(raw: Path, processed: Path, *, legacy_ems: bool = False):
+    """Firetruck default: firehouses preferred. Legacy EMS layers optional."""
     firehouses = pd.read_csv(raw / "fdny_firehouses.csv", low_memory=False)
-    ems_stations = _maybe_csv(raw / "ems_stations.csv")
-    hospital_bays = _maybe_csv(raw / "hospital_bays.csv")
-    if hospital_bays is not None:
-        hospital_bays = filter_hospital_bays(hospital_bays)
     csl_points = _maybe_csv(processed / "synthetic_csls.csv")
 
-    layers = [
-        (ems_stations, "ems_station"),
-        (hospital_bays, "hospital_bay"),
-        (firehouses, "fdny_firehouse"),
-    ]
+    layers = [(firehouses, "fdny_firehouse")]
+    if legacy_ems:
+        ems_stations = _maybe_csv(raw / "ems_stations.csv")
+        hospital_bays = _maybe_csv(raw / "hospital_bays.csv")
+        if hospital_bays is not None:
+            hospital_bays = filter_hospital_bays(hospital_bays)
+        layers.extend([(ems_stations, "ems_station"), (hospital_bays, "hospital_bay")])
+
     static = combine_depot_layers(layers)
-    preferred = static[static["depot_layer"].isin(["ems_station", "hospital_bay"])]
+    preferred = static[static["depot_layer"] == "fdny_firehouse"]
     if preferred.empty:
         preferred = static
-    fallback = static[static["depot_layer"] == "fdny_firehouse"]
+    fallback = static[static["depot_layer"] != "fdny_firehouse"]
 
     csls = None
     if csl_points is not None and len(csl_points):
@@ -83,6 +83,7 @@ def main():
     p.add_argument("--slack", type=float, default=1.15, help="Tolerance multiplier on actual time")
     p.add_argument("--also-csl", action="store_true", default=True, help="Also query GMaps from nearest CSL")
     p.add_argument("--no-csl", action="store_true", help="Skip CSL GMaps queries")
+    p.add_argument("--legacy-ems", action="store_true", help="Prefer EMS/hospital depots (legacy)")
     args = p.parse_args()
     also_csl = args.also_csl and not args.no_csl
 
@@ -97,7 +98,7 @@ def main():
         sys.exit(2)
 
     od = pd.read_csv(args.od, low_memory=False)
-    preferred, fallback, csls = _prepare_static_and_csl(args.raw, args.processed)
+    preferred, fallback, csls = _prepare_static_and_csl(args.raw, args.processed, legacy_ems=args.legacy_ems)
 
     # Prefer rows that have observed travel time + dest coords.
     travel_col = "travel_seconds" if "travel_seconds" in od.columns else "incident_travel_tm_seconds_qy"
@@ -115,7 +116,7 @@ def main():
         prefer_b = getattr(rec, "prefer_borough", None) or getattr(rec, "borough_norm", None)
         actual = float(getattr(rec, travel_col))
 
-        # Nearest official depot (EMS/hospital preferred, else firehouse)
+        # Nearest official depot (firehouse preferred; EMS/hospital only with --legacy-ems)
         cand = preferred_by_boro.get(prefer_b)
         if cand is None or not len(cand):
             cand = fallback_by_boro.get(prefer_b)

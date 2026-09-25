@@ -29,7 +29,7 @@ omp = "/opt/homebrew/opt/libomp/lib"
 if Path(omp).exists():
     os.environ["DYLD_LIBRARY_PATH"] = omp + ":" + os.environ.get("DYLD_LIBRARY_PATH", "")
 
-# Diverse SF OD scenarios (fire/EMS-ish → neighborhoods)
+# Diverse SF OD scenarios (fire-station-ish → neighborhoods)
 SF_MAP_SCENARIOS = [
     {
         "id": "mission_to_fidi",
@@ -275,6 +275,7 @@ def build_master_map(
         for _, r in mark_sample.iterrows():
             layer = str(r.get("depot_layer") or "other")
             start_color = {
+                "fdny_firehouse": "#d62728",
                 "csl": "#9467bd",
                 "ems_station": "#1f77b4",
                 "hospital_bay": "#2ca02c",
@@ -730,43 +731,26 @@ def build_master_map(
         else:
             print(f"  no ROW wins CSV at {rw_path} (skip)")
 
-        # ---- Facilities (NYC) ----
+        # ---- Facilities (NYC firehouses) ----
         if city.get("facilities"):
-            fac_ems = MarkerCluster(name=f"{clabel} · Facilities · EMS stations", show=False)
-            fac_ems.add_to(m)
-            layer_js[f"{clabel} · Facilities · EMS stations"] = fac_ems.get_name()
-            city_layers[cid].append(f"{clabel} · Facilities · EMS stations")
-            layer_sets["facilities"].append(f"{clabel} · Facilities · EMS stations")
-            fac_hosp = MarkerCluster(
-                name=f"{clabel} · Facilities · Hospital bays", show=False
-            )
-            fac_hosp.add_to(m)
-            layer_js[f"{clabel} · Facilities · Hospital bays"] = fac_hosp.get_name()
-            city_layers[cid].append(f"{clabel} · Facilities · Hospital bays")
-            layer_sets["facilities"].append(f"{clabel} · Facilities · Hospital bays")
+            fac_fh = MarkerCluster(name=f"{clabel} · Facilities · FDNY firehouses", show=False)
+            fac_fh.add_to(m)
+            layer_js[f"{clabel} · Facilities · FDNY firehouses"] = fac_fh.get_name()
+            city_layers[cid].append(f"{clabel} · Facilities · FDNY firehouses")
+            layer_sets["facilities"].append(f"{clabel} · Facilities · FDNY firehouses")
 
-            stations = ROOT / "data" / "raw" / "ems_stations.csv"
-            hospitals = ROOT / "data" / "raw" / "hospital_bays.csv"
-            if stations.exists():
-                sdf = pd.read_csv(stations)
-                for _, r in sdf.iterrows():
+            firehouses = ROOT / "data" / "raw" / "fdny_firehouses.csv"
+            if firehouses.exists():
+                fdf = pd.read_csv(firehouses)
+                name_col = "facilityname" if "facilityname" in fdf.columns else "facname"
+                for _, r in fdf.iterrows():
                     if pd.isna(r.get("latitude")):
                         continue
                     folium.Marker(
                         [float(r["latitude"]), float(r["longitude"])],
-                        icon=folium.Icon(color="blue", icon="plus-sign"),
-                        popup=f"EMS station<br>{r.get('facname')}",
-                    ).add_to(fac_ems)
-            if hospitals.exists():
-                hdf = pd.read_csv(hospitals)
-                for _, r in hdf.iterrows():
-                    if pd.isna(r.get("latitude")):
-                        continue
-                    folium.Marker(
-                        [float(r["latitude"]), float(r["longitude"])],
-                        icon=folium.Icon(color="green", icon="plus-sign"),
-                        popup=f"Hospital bay<br>{r.get('facname')}",
-                    ).add_to(fac_hosp)
+                        icon=folium.Icon(color="red", icon="fire", prefix="fa"),
+                        popup=f"Firehouse<br>{r.get(name_col)}",
+                    ).add_to(fac_fh)
 
         stats_bits.append(f"{clabel}: {markers_n} OD · {routed_ok} routed · {len(scenarios)} examples")
 

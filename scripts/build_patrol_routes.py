@@ -7,13 +7,13 @@ Pairs with the inferred starting-location pipeline (`docs/starting_locations.md`
 where units *should* be posted so the next incident is closer.
 
 Objective (see also summary.json):
-    demand  w_c   = historical EMS incidents in grid cell c
+    demand  w_c   = historical FDNY incidents in grid cell c
     cost    t(p,c)= EMV travel seconds post p -> cell c
     minimize  E[T] = Σ w_c · min_p t(p,c) / Σ w_c          (--objective response_time)
     maximize  C(T) = Σ w_c · 1[min_p t(p,c) ≤ T] / Σ w_c   (--objective coverage)
 
-Candidate posts come from the same inferred layers used for starts (EMS stations,
-hospital bays, synthetic alarm-box CSLs) plus high-demand cell anchors. Home bases
+Candidate posts come from the same inferred layers used for starts (FDNY firehouses,
+synthetic alarm-box CSLs) plus high-demand cell anchors. Home bases
 ("anchors") are restricted to real facilities; each unit patrols a short loop
 anchor -> posts -> anchor.
 
@@ -77,10 +77,11 @@ UNIT_COLORS = [
 ]
 
 LAYER_LABELS = {
-    "ems_station": "EMS station",
-    "hospital_bay": "Hospital bay",
+    "fdny_firehouse": "FDNY firehouse",
     "csl": "Synthetic CSL (alarm-box intersection)",
     "demand_cell": "Demand-cell anchor",
+    "ems_station": "EMS station (legacy)",
+    "hospital_bay": "Hospital bay (legacy)",
 }
 
 
@@ -113,13 +114,13 @@ def _response_color(seconds: float, threshold_s: float) -> str:
 
 
 def load_inputs(args) -> dict:
-    """Load incidents + candidate layers, or synthesize a small demo."""
+    """Load FDNY incidents + firehouse/CSL candidate layers, or synthesize a demo."""
     if args.demo:
         incidents, stations, csls = synthetic_demo_data()
         return {
             "mode": "demo_synthetic",
             "incidents": incidents,
-            "layers": [(stations, "ems_station"), (csls, "csl")],
+            "layers": [(stations, "fdny_firehouse"), (csls, "csl")],
             "od": incidents,
         }
 
@@ -131,19 +132,23 @@ def load_inputs(args) -> dict:
         return {
             "mode": "demo_synthetic_fallback",
             "incidents": incidents,
-            "layers": [(stations, "ems_station"), (csls, "csl")],
+            "layers": [(stations, "fdny_firehouse"), (csls, "csl")],
             "od": incidents,
         }
 
-    stations = _maybe_csv(args.raw / "ems_stations.csv")
-    hospitals = _maybe_csv(args.raw / "hospital_bays.csv")
-    if hospitals is not None:
-        from emvro.depots import filter_hospital_bays
-
-        hospitals = filter_hospital_bays(hospitals)
+    firehouses = _maybe_csv(args.raw / "fdny_firehouses.csv")
     csls = _maybe_csv(args.processed / "synthetic_csls.csv")
+    layers = [(firehouses, "fdny_firehouse"), (csls, "csl")]
 
-    layers = [(stations, "ems_station"), (hospitals, "hospital_bay"), (csls, "csl")]
+    if getattr(args, "legacy_ems", False):
+        stations = _maybe_csv(args.raw / "ems_stations.csv")
+        hospitals = _maybe_csv(args.raw / "hospital_bays.csv")
+        if hospitals is not None:
+            from emvro.depots import filter_hospital_bays
+
+            hospitals = filter_hospital_bays(hospitals)
+        layers.extend([(stations, "ems_station"), (hospitals, "hospital_bay")])
+
     if all(df is None or not len(df) for df, _ in layers):
         # Degrade to the depots already embedded in the OD table.
         cols = ["depot_name", "depot_layer", "start_lat", "start_lon", "borough"]
@@ -157,7 +162,7 @@ def load_inputs(args) -> dict:
         else:
             raise SystemExit("No candidate post layers available")
 
-    return {"mode": "nyc_ems", "incidents": od, "layers": layers, "od": od}
+    return {"mode": "nyc_firetrucks", "incidents": od, "layers": layers, "od": od}
 
 
 # --------------------------------------------------------------------------- #
@@ -252,7 +257,7 @@ def build_plan(args) -> dict:
                 "equal_cost": False,
                 "note": (
                     "Context only, not an equal-cost comparison: assumes a staffed unit sitting "
-                    "at every EMS station / hospital bay."
+                    "at every FDNY firehouse (and legacy EMS layers if --legacy-ems)."
                 ),
             }
         )
@@ -1006,7 +1011,7 @@ def main():
         ],
         "pairs_with_inferred_starts": (
             "Candidate posts and home bases are the same inferred layers used as OD start "
-            "locations (ems_station / hospital_bay / synthetic CSL, see docs/starting_locations.md). "
+            "locations (fdny_firehouse / synthetic CSL, see docs/starting_locations.md). "
             "Patrol posts are the prescriptive version of the hybrid on-road start: instead of "
             "assuming a unit happened to be at a CSL, they say which CSL-like posts to hold."
         ),

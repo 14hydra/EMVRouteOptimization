@@ -2,15 +2,15 @@
 
 ## Idea
 
-Public EMS CAD has travel times but no unit start GPS. Units are often already
-**on the road** (CSL staging), not at a station.
+Public FDNY CAD has travel times but no unit start GPS. Units are often already
+**on the road** (CSL staging), not at a firehouse.
 
 Use **Google Maps driving ETAs** as the stand-in **control model** (civilian GPS):
 
-1. Nearest official depot (EMS station / hospital bay, else firehouse) → incident ZIP centroid  
+1. Nearest official depot (FDNY firehouse by default; EMS/hospital only with `--legacy-ems`) → incident ZIP centroid  
 2. Ask Google Maps for civilian `duration` / `duration_in_traffic`  
 3. Scale by an EMV speedup factor (default `0.75` = ~25% faster than cars)  
-4. Compare to observed `incident_travel_tm_seconds_qy`
+4. Compare to observed CAD travel seconds
 
 ### Classification rule
 

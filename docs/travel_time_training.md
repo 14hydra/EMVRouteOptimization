@@ -1,21 +1,21 @@
-# Travel-time models (ambulances only)
+# Travel-time models (firetrucks only)
 
 Aligned with slides **Step 4: Travel Time Prediction Model**.
 
 ## Important: two different models
 
-Public EMS CAD **cannot** reach high incident-level R². Destinations are ZIP
+Public FDNY CAD **cannot** reach high incident-level R². Destinations are ZIP
 centroids and unit GPS at assignment is missing — inferred path length is
 essentially uncorrelated with observed travel seconds (CAD holdout R² ≈ 0.2).
 
 | Model | Label | Typical holdout R² | Use for |
 |---|---|---|---|
-| **CAD context model** | real `incident_travel_tm_seconds_qy` | ~0.2 | understanding dispatch/context drivers |
+| **CAD context model** | real FDNY CAD travel seconds | ~0.2 | understanding dispatch/context drivers |
 | **Route ETA model** | network EMV time on **known OD** | **≥ 0.8** (currently ~0.96) | scoring candidate routes in optimizers |
 
 ## Route ETA model (R² ≥ 0.8) — use this for optimizers
 
-1. Sample ambulance origins (EMS stations / hospital bays) → ZIP destinations.
+1. Sample firetruck origins (FDNY firehouses) → ZIP destinations.
 2. Shortest-path **civilian** time on the cached OSM drive graph.
 3. Map to EMV travel time with hour congestion, EMV speedup, severity, weather + noise.
 4. Train LightGBM on path + context features.

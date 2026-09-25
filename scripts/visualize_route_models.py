@@ -283,7 +283,7 @@ def plot_dashboard(df: pd.DataFrame, mcs_hist, drl_hist, out: Path):
     plt.close(fig)
 
 
-# Diverse NYC OD scenarios for the multi-route map (EMS station-ish → neighborhoods)
+# Diverse NYC OD scenarios for the multi-route map (firehouse → neighborhoods)
 MAP_SCENARIOS = [
     {
         "id": "midtown_to_civic",
@@ -293,13 +293,13 @@ MAP_SCENARIOS = [
     },
     {
         "id": "bronx_to_harlem",
-        "label": "Bronx EMS station → Harlem",
+        "label": "Bronx firehouse → Harlem",
         "origin": {"lat": 40.83487, "lon": -73.92797},
         "dest": {"lat": 40.8116, "lon": -73.9465},
     },
     {
         "id": "brooklyn_to_downtown",
-        "label": "Brooklyn EMS station → Downtown Brooklyn",
+        "label": "Brooklyn firehouse → Downtown Brooklyn",
         "origin": {"lat": 40.67835, "lon": -73.99022},
         "dest": {"lat": 40.6920, "lon": -73.9870},
     },

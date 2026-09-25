@@ -1,4 +1,7 @@
-"""Infer EMV starting locations (depots) missing from public EMS CAD extracts."""
+"""Infer EMV starting locations (depots) missing from public FDNY / EMS CAD extracts.
+
+Default project scope is **firetrucks**: FDNY firehouses + alarm-box CSLs.
+"""
 
 from __future__ import annotations
 
@@ -31,11 +34,12 @@ BOROUGH_ALIASES = {
 }
 
 # Preference among static depot layers (lower = higher priority when distances tie).
+# Firetruck scope: firehouses first; EMS/hospital kept only for optional legacy runs.
 LAYER_PRIORITY = {
-    "ems_station": 0,
-    "hospital_bay": 1,
-    "fdny_firehouse": 2,
-    "csl": 3,
+    "fdny_firehouse": 0,
+    "csl": 1,
+    "ems_station": 2,
+    "hospital_bay": 3,
 }
 
 # Specialty facilities that typically do not stage 911 EMS tours.
@@ -93,8 +97,20 @@ def prepare_depots(df: pd.DataFrame, *, source_label: str) -> pd.DataFrame:
     lat_col = pick("latitude", "lat", "start_lat")
     lon_col = pick("longitude", "lon", "lng", "start_lon")
     boro_col = pick("borough", "boro")
-    name_col = pick("facname", "facilityname", "facility_name", "name", "depot_name", "location")
-    addr_col = pick("facilityaddress", "address", "depot_address")
+    name_col = pick(
+        "facilityname",
+        "facname",
+        "facility_name",
+        "name",
+        "depot_name",
+        "location",
+    )
+    addr_col = pick(
+        "facilityaddress",
+        "facility_address",
+        "address",
+        "depot_address",
+    )
     type_col = pick("factype", "facility_type", "type", "depot_type", "box_type")
 
     out = pd.DataFrame(
@@ -215,7 +231,7 @@ def _pick_static(
     dest_lon: float,
     dest_lat: float,
 ):
-    """Prefer EMS/hospital layers over firehouses."""
+    """Prefer firehouses; only use fallback layers when no preferred candidate exists."""
     cand = preferred_by_boro.get(prefer_b) if prefer_b else None
     if cand is not None and len(cand):
         chosen, dist = _nearest_depot(cand, dest_lon, dest_lat)
@@ -244,10 +260,13 @@ def infer_start_locations(
     """
     Attach inferred start (depot) and destination (ZIP centroid) coordinates.
 
+    Default scope is **firetrucks**: static depots are FDNY firehouses. EMS stations /
+    hospital bays are accepted only if passed explicitly (legacy comparisons).
+
     start_mode:
-      - static: EMS station / hospital bay / firehouse only
-      - csl: synthetic Cross Street Locations only
-      - hybrid: use CSL when it is closer to the destination than the best static
+      - static: firehouse (and any optional legacy layers) only
+      - csl: synthetic Cross Street Locations only (alarm-box intersections)
+      - hybrid: use CSL when closer to the destination than the best static
         depot (proxy for an already-on-the-road unit); otherwise static
     """
     start_mode = (start_mode or "hybrid").lower().strip()
@@ -255,17 +274,18 @@ def infer_start_locations(
         raise ValueError(f"Unknown start_mode={start_mode!r}")
 
     layers = [
+        (firehouses, "fdny_firehouse"),
         (ems_stations, "ems_station"),
         (hospital_bays, "hospital_bay"),
-        (firehouses, "fdny_firehouse"),
     ]
     if start_mode in {"csl", "hybrid"} and csl_points is not None and len(csl_points):
         layers.append((csl_points, "csl"))
 
     depots = combine_depot_layers(layers)
     static = depots[depots["depot_layer"] != "csl"].copy()
-    preferred_static = static[static["depot_layer"].isin(["ems_station", "hospital_bay"])].copy()
-    fallback_static = static[static["depot_layer"] == "fdny_firehouse"].copy()
+    # Prefer firehouses; fall back to any other static layer only if no firehouses.
+    preferred_static = static[static["depot_layer"] == "fdny_firehouse"].copy()
+    fallback_static = static[static["depot_layer"] != "fdny_firehouse"].copy()
     if preferred_static.empty:
         preferred_static = static
         fallback_static = static.iloc[0:0]

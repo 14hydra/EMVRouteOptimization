@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Visualize and analyze ambulance travel-time model performance.
+Visualize and analyze firetruck travel-time model performance.
 
 Reloads the saved LightGBM model, rebuilds the same holdout split, and writes
 figures + a metrics JSON under data/figures/model_eval/.

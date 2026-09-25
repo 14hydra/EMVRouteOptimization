@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Visualize EMVRouteOptimization datasets and inferred OD pairs.
+Visualize firetruck EMVRouteOptimization datasets and inferred OD pairs.
 
 Produces static PNGs under data/figures/ and an interactive Folium map
-(data/figures/emv_nyc_map.html).
+(data/figures/emv_nyc_map.html). Scope is FDNY firehouses + synthetic CSLs.
 
 If GOOGLE_MAPS_API_KEY is set, also runs a small Google Maps control
 classification sample and plots station_plausible vs on_road_required.
@@ -43,8 +43,6 @@ def _load(raw: Path, processed: Path, samples: Path):
     for c in ("travel_seconds", "response_seconds", "crow_flies_km", "start_lat", "start_lon", "dest_lat", "dest_lon"):
         if c in od.columns:
             od[c] = pd.to_numeric(od[c], errors="coerce")
-    stations = pd.read_csv(raw / "ems_stations.csv") if (raw / "ems_stations.csv").exists() else None
-    hospitals = pd.read_csv(raw / "hospital_bays.csv") if (raw / "hospital_bays.csv").exists() else None
     firehouses = pd.read_csv(raw / "fdny_firehouses.csv") if (raw / "fdny_firehouses.csv").exists() else None
     csls = pd.read_csv(processed / "synthetic_csls.csv") if (processed / "synthetic_csls.csv").exists() else None
     gmaps = (
@@ -52,7 +50,7 @@ def _load(raw: Path, processed: Path, samples: Path):
         if (processed / "origin_class_gmaps_control.csv").exists()
         else None
     )
-    return od, stations, hospitals, firehouses, csls, gmaps
+    return od, firehouses, csls, gmaps
 
 
 def fig_layer_and_mode(od: pd.DataFrame, out: Path):
@@ -84,7 +82,7 @@ def fig_travel_time(od: pd.DataFrame, out: Path):
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
     sns.histplot(df, x="travel_seconds", bins=40, ax=axes[0], color="#1f77b4")
-    axes[0].set_title("Observed EMS travel time")
+    axes[0].set_title("Observed FDNY travel time")
     axes[0].set_xlabel("Travel seconds")
 
     if "borough" in df.columns:
@@ -132,16 +130,14 @@ def fig_spatial_scatter(od: pd.DataFrame, out: Path):
     plt.close(fig)
 
 
-def fig_depot_inventory(stations, hospitals, firehouses, csls, out: Path):
+def fig_depot_inventory(firehouses, csls, out: Path):
     counts = {
-        "EMS stations": 0 if stations is None else len(stations),
-        "Hospital bays": 0 if hospitals is None else len(hospitals),
         "Firehouses": 0 if firehouses is None else len(firehouses),
         "Synthetic CSLs": 0 if csls is None else len(csls),
     }
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(list(counts.keys()), list(counts.values()), color=["#1f77b4", "#2ca02c", "#ff7f0e", "#9467bd"])
-    ax.set_title("Depot / staging inventory")
+    fig, ax = plt.subplots(figsize=(7, 5))
+    ax.bar(list(counts.keys()), list(counts.values()), color=["#d62728", "#9467bd"])
+    ax.set_title("Firetruck depot / staging inventory")
     ax.set_ylabel("Locations")
     for i, (k, v) in enumerate(counts.items()):
         ax.text(i, v + max(counts.values()) * 0.01, str(v), ha="center")
@@ -183,7 +179,7 @@ def fig_gmaps_control(gmaps: pd.DataFrame | None, out: Path):
         lim = max(plot_df["gmaps_station_s"].max(), plot_df["actual_travel_s"].max())
         axes[1].plot([0, lim], [0, lim], "k--", lw=1, label="actual = GMaps")
         axes[1].set_xlabel("Google Maps station ETA (s)")
-        axes[1].set_ylabel("Observed EMS travel (s)")
+        axes[1].set_ylabel("Observed FDNY travel (s)")
         axes[1].set_title("Civilian GMaps vs observed travel")
         axes[1].legend()
     else:
@@ -193,7 +189,7 @@ def fig_gmaps_control(gmaps: pd.DataFrame | None, out: Path):
     plt.close(fig)
 
 
-def build_folium_map(od, stations, hospitals, csls, out: Path):
+def build_folium_map(od, firehouses, csls, out: Path):
     import json
 
     import folium
@@ -244,6 +240,7 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
     for i, (_, r) in enumerate(sample.iterrows()):
         layer = str(r.get("depot_layer") or "other")
         start_color = {
+            "fdny_firehouse": "#d62728",
             "csl": "#9467bd",
             "ems_station": "#1f77b4",
             "hospital_bay": "#2ca02c",
@@ -255,7 +252,7 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
             "start_color": start_color,
             "end_color": "#ff7f0e",
             "popup_start": (
-                f"Inferred ambulance start<br>{layer}: {r.get('depot_name')}"
+                f"Inferred firetruck start<br>{layer}: {r.get('depot_name')}"
                 f"<br>mode={r.get('start_mode')}"
             ),
             "popup_end": (
@@ -269,26 +266,16 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
     # Placeholder layer so LayerControl lists it; points/lines added in JS
     folium.FeatureGroup(name=od_group_name, show=True).add_to(m)
 
-    if stations is not None and len(stations):
-        g = MarkerCluster(name="EMS stations (facility layer)").add_to(m)
-        for _, r in stations.iterrows():
+    if firehouses is not None and len(firehouses):
+        g = MarkerCluster(name="FDNY firehouses").add_to(m)
+        name_col = "facilityname" if "facilityname" in firehouses.columns else "facname"
+        for _, r in firehouses.iterrows():
             if pd.isna(r.get("latitude")):
                 continue
             folium.Marker(
                 [float(r["latitude"]), float(r["longitude"])],
-                icon=folium.Icon(color="blue", icon="plus-sign"),
-                popup=f"EMS station<br>{r.get('facname')}",
-            ).add_to(g)
-
-    if hospitals is not None and len(hospitals):
-        g = MarkerCluster(name="Hospital bays (facility layer)").add_to(m)
-        for _, r in hospitals.iterrows():
-            if pd.isna(r.get("latitude")):
-                continue
-            folium.Marker(
-                [float(r["latitude"]), float(r["longitude"])],
-                icon=folium.Icon(color="green", icon="plus-sign"),
-                popup=f"Hospital bay<br>{r.get('facname')}",
+                icon=folium.Icon(color="red", icon="fire", prefix="fa"),
+                popup=f"Firehouse<br>{r.get(name_col)}",
             ).add_to(g)
 
     if csls is not None and len(csls):
@@ -323,15 +310,13 @@ def build_folium_map(od, stations, hospitals, csls, out: Path):
         box-shadow: 0 2px 8px rgba(0,0,0,0.18);
         max-width: 340px;
     ">
-      <div style="font-weight:700; margin-bottom:8px;">NYC ambulance trip map</div>
+      <div style="font-weight:700; margin-bottom:8px;">NYC firetruck trip map</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ff7f0e;margin-right:8px;"></span>Incident ZIP centroid (destination)</div>
-      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#1f77b4;margin-right:8px;"></span>Inferred start: EMS station</div>
-      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2ca02c;margin-right:8px;"></span>Inferred start: hospital bay</div>
+      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#d62728;margin-right:8px;"></span>Inferred start: FDNY firehouse</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9467bd;margin-right:8px;"></span>Inferred start: on-road staging (CSL)</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#7f7f7f;margin-right:8px;"></span>Inferred start: other / fallback</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
-      <div style="margin-bottom:4px;"><b>Blue + marker</b> — EMS station facility</div>
-      <div style="margin-bottom:4px;"><b>Green + marker</b> — Hospital bay facility</div>
+      <div style="margin-bottom:4px;"><b>Red fire markers</b> — FDNY firehouse facilities</div>
       <div style="margin-bottom:4px;"><b>Purple dots (clustered)</b> — Synthetic on-road staging candidates</div>
       <hr style="border:none;border-top:1px solid #ddd;margin:8px 0;">
       <div style="font-weight:600;margin-bottom:4px;">Numbered circles (clusters)</div>
@@ -448,7 +433,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
 
     gmaps_df = maybe_run_gmaps(args.gmaps_limit, args.processed)
-    od, stations, hospitals, firehouses, csls, gmaps_file = _load(args.raw, args.processed, args.samples)
+    od, firehouses, csls, gmaps_file = _load(args.raw, args.processed, args.samples)
     if gmaps_df is not None:
         gmaps_file = gmaps_df
 
@@ -456,9 +441,9 @@ def main():
     fig_travel_time(od, args.out)
     fig_crowflies_vs_travel(od, args.out)
     fig_spatial_scatter(od, args.out)
-    fig_depot_inventory(stations, hospitals, firehouses, csls, args.out)
+    fig_depot_inventory(firehouses, csls, args.out)
     fig_gmaps_control(gmaps_file, args.out)
-    map_path = build_folium_map(od, stations, hospitals, csls, args.out)
+    map_path = build_folium_map(od, firehouses, csls, args.out)
 
     summary = {
         "figures": sorted([p.name for p in args.out.glob("*.png")]),

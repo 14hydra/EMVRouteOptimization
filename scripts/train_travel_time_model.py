@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Train the ambulance travel-time prediction model (slides Step 4).
+Train the firetruck travel-time prediction model (slides Step 4).
 
 Supports:
   --feature-set full   (includes dispatch_wait / held)

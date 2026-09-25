@@ -4,15 +4,15 @@
 
 **Pre-positioning, not dispatch.** The route models (`docs/route_models.md`) answer *"given a
 call, what is the fastest path?"*. This answers *"before any call comes in, where should
-ambulances be?"* — the question the industry mentor asked as "show optimal patrol routes so
+firetrucks be?"* — the question the industry mentor asked as "show optimal patrol routes so
 EMVs can respond faster".
 
 Code: `src/emvro/patrol.py` + `scripts/build_patrol_routes.py`.
 
 ## How it pairs with inferred starting locations
 
-`docs/starting_locations.md` infers a *descriptive* start per incident (nearest EMS station /
-hospital bay, or a synthetic alarm-box CSL when it is closer — `start_mode=hybrid`). Patrol
+`docs/starting_locations.md` infers a *descriptive* start per incident (nearest FDNY firehouse,
+or a synthetic alarm-box CSL when it is closer — `start_mode=hybrid`). Patrol
 posts are the *prescriptive* version of the same idea:
 
 | Inferred starts (`depots.py` / `csl.py`) | Patrol plan (`patrol.py`) |
@@ -21,14 +21,14 @@ posts are the *prescriptive* version of the same idea:
 | one start per historical incident | k posts for the whole demand surface |
 | descriptive (rebuild OD pairs) | prescriptive (where to stage next shift) |
 
-Concretely the same layers are reused: `ems_station` + `hospital_bay` are the candidate **home
+Concretely the same layers are reused: `fdny_firehouse` are the candidate **home
 bases / anchors** (a crew can actually be relieved there), `csl` points are on-road **post**
 candidates, and the top demand-cell centroids are added so the optimizer is not limited to
 legacy station real estate.
 
 ## Objective
 
-Historical EMS incident destinations are binned into a demand grid:
+Historical FDNY incident destinations are binned into a demand grid:
 
 - `w_c` — incident weight of cell `c` (count; `--severity-weighted` up-weights acute calls)
 - `t(p, c)` — EMV travel seconds from post `p` to cell `c`
@@ -66,10 +66,10 @@ artifact of the start inference, not a driving speed. The default is a 28 kph pr
 |---|---|
 | `patrol_plan` | the selected posts |
 | `best_k_facilities_only` | **equal-cost**: same unit count, existing facilities only |
-| `all_facilities_stationary` | context only: a staffed unit at every station / hospital bay |
+| `all_facilities_stationary` | context only: a staffed unit at every FDNY firehouse |
 
 `best_k_facilities_only` is the honest headline comparison — it isolates the value of going
-on-road rather than the value of adding ambulances.
+on-road rather than the value of adding trucks.
 
 ## Run
 

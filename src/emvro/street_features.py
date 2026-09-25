@@ -1,4 +1,4 @@
-"""OSM drive-network path aggregates for inferred ambulance OD pairs.
+"""OSM drive-network path aggregates for inferred firetruck OD pairs.
 
 LION is the long-term NYC centerline source; OSM (via OSMnx) is the practical
 open substitute until a local LION extract is wired in.

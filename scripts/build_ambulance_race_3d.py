@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build a Google Maps photorealistic-3D multi-ambulance race HTML.
+Build a Google Maps photorealistic-3D multi-firetruck race HTML.
 
 Racers (all timed by **our** EMV travel-time model):
   • Google Maps alternatives (up to 3) — geometry from Google, scored by us
