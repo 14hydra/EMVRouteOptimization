@@ -25,6 +25,7 @@ STREET_FEATURE_COLUMNS = [
     "osm_motorway_share",
     "osm_residential_share",
     "osm_circuity",  # path_km / crow_flies_km
+    "osm_travel_s",  # path_km / mean_speed → seconds
     "osm_route_ok",
 ]
 
@@ -172,16 +173,23 @@ def _path_aggregates(G, route: list, crow_km: float) -> dict[str, float]:
         if path_km == path_km and crow_km and crow_km > 0.05
         else np.nan
     )
+    mean_spd = float(np.nanmean(speed_arr)) if len(speed_arr) else np.nan
+    travel_s = (
+        float(path_km / mean_spd * 3600.0)
+        if path_km == path_km and mean_spd == mean_spd and mean_spd > 1.0
+        else np.nan
+    )
     return {
         "osm_path_km": path_km,
         "osm_n_edges": float(len(lengths)),
         "osm_n_nodes": float(len(route)),
-        "osm_mean_speed_kmh": float(np.nanmean(speed_arr)) if len(speed_arr) else np.nan,
+        "osm_mean_speed_kmh": mean_spd,
         "osm_min_speed_kmh": float(np.nanmin(speed_arr)) if np.isfinite(speed_arr).any() else np.nan,
         "osm_primary_share": primary / n,
         "osm_motorway_share": motorway / n,
         "osm_residential_share": residential / n,
         "osm_circuity": circuity,
+        "osm_travel_s": travel_s,
         "osm_route_ok": 1.0,
     }
 
@@ -228,12 +236,13 @@ def attach_street_features(
     *,
     limit: int | None = None,
     show_progress: bool = True,
+    workers: int = 8,
 ) -> pd.DataFrame:
     """
     Add OSM path features for each row with start_/dest_ coordinates.
 
-    Routes unique rounded OD keys once, then maps back (much faster than
-    per-row shortest paths). ``limit`` optionally caps input rows (smoke tests).
+    Fast path: batch ``nearest_nodes`` for unique coordinates, then route unique
+    node-pairs once and map features back to rows.
     """
     graph_path = Path(graph_path)
     out = df.copy()
@@ -244,10 +253,11 @@ def attach_street_features(
         out["osm_route_ok"] = 0.0
         return out
 
-    if limit is not None:
-        work = out.iloc[:limit].copy()
-    else:
-        work = out
+    work = out.iloc[:limit].copy() if limit is not None else out.copy()
+    need = ["start_lat", "start_lon", "dest_lat", "dest_lon"]
+    if any(c not in work.columns for c in need):
+        out["osm_route_ok"] = 0.0
+        return out
 
     G = load_graph(graph_path)
     ox = _try_import_ox()
@@ -256,36 +266,69 @@ def attach_street_features(
     except Exception:  # noqa: BLE001
         pass
 
-    work = work.copy()
-    work["od_key"] = list(
-        zip(
-            work["start_lat"].round(4),
-            work["start_lon"].round(4),
-            work["dest_lat"].round(4),
-            work["dest_lon"].round(4),
-        )
-    )
-    # One representative row per unique OD
-    reps = work.drop_duplicates(subset=["od_key"], keep="first")
-    cache: dict[tuple, dict[str, float]] = {}
-    iterator = reps.itertuples(index=False)
-    if show_progress:
-        iterator = tqdm(reps.itertuples(index=False), total=len(reps), desc="osm_unique_od", unit="od")
+    work["s_lat"] = work["start_lat"].round(4)
+    work["s_lon"] = work["start_lon"].round(4)
+    work["d_lat"] = work["dest_lat"].round(4)
+    work["d_lon"] = work["dest_lon"].round(4)
+    work["od_key"] = list(zip(work["s_lat"], work["s_lon"], work["d_lat"], work["d_lon"]))
 
-    for row in iterator:
+    pts = pd.concat(
+        [
+            work[["s_lat", "s_lon"]].rename(columns={"s_lat": "lat", "s_lon": "lon"}),
+            work[["d_lat", "d_lon"]].rename(columns={"d_lat": "lat", "d_lon": "lon"}),
+        ],
+        ignore_index=True,
+    ).dropna().drop_duplicates()
+
+    if not len(pts):
+        out["osm_route_ok"] = 0.0
+        return out
+
+    node_ids = ox.nearest_nodes(G, pts["lon"].to_numpy(), pts["lat"].to_numpy())
+    pt_to_node = dict(zip(zip(pts["lat"], pts["lon"]), node_ids))
+
+    reps = work.drop_duplicates(subset=["od_key"], keep="first")
+    # Build unique (orig_node, dest_node) jobs with crow-flies.
+    node_jobs: dict[tuple[Any, Any], list[tuple[tuple, float | None]]] = {}
+    empty_keys = []
+    for row in reps.itertuples(index=False):
         key = row.od_key
         if any(pd.isna(x) for x in key):
-            cache[key] = _empty_feats()
+            empty_keys.append(key)
+            continue
+        orig = pt_to_node.get((key[0], key[1]))
+        dest = pt_to_node.get((key[2], key[3]))
+        if orig is None or dest is None:
+            empty_keys.append(key)
             continue
         crow = float(row.crow_flies_km) if pd.notna(getattr(row, "crow_flies_km", np.nan)) else None
-        cache[key] = route_features_for_od(
-            G,
-            float(key[0]),
-            float(key[1]),
-            float(key[2]),
-            float(key[3]),
-            crow_km=crow,
-        )
+        node_jobs.setdefault((orig, dest), []).append((key, crow))
+
+    cache: dict[tuple, dict[str, float]] = {k: _empty_feats() for k in empty_keys}
+    items = list(node_jobs.items())
+    iterator = items
+    if show_progress:
+        iterator = tqdm(items, total=len(items), desc="osm_node_pairs", unit="pair")
+
+    for (orig, dest), key_crow_list in iterator:
+        try:
+            route = nx.shortest_path(G, orig, dest, weight="length")
+            # Use first crow; path aggregates only need one crow for circuity.
+            crow = key_crow_list[0][1]
+            if crow is None or crow != crow:
+                # reconstruct from first key lat/lon
+                k0 = key_crow_list[0][0]
+                r = 6371.0
+                p1, p2 = map(math.radians, [k0[0], k0[2]])
+                dphi = math.radians(k0[2] - k0[0])
+                dlmb = math.radians(k0[3] - k0[1])
+                a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+                crow = 2 * r * math.asin(math.sqrt(a))
+            feats = _path_aggregates(G, route, float(crow))
+        except Exception:  # noqa: BLE001
+            feats = _empty_feats()
+        for key, _ in key_crow_list:
+            cache[key] = feats
 
     mapped = work["od_key"].map(cache)
     for c in STREET_FEATURE_COLUMNS:

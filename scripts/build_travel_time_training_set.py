@@ -9,6 +9,7 @@ single assumed start. EMS stations / hospital bays are excluded by default.
 Upgrades layered onto the base table:
   - hourly weather (Open-Meteo)
   - OSM path aggregates along the primary inferred OD (cached graphml)
+  - first-due OD geometry / QC columns when od_pairs_inferred_starts.csv exists
 """
 
 from __future__ import annotations
@@ -41,11 +42,23 @@ def _normalize_fdny(df: pd.DataFrame) -> pd.DataFrame:
         "incident_borough": "borough",
         "incident_travel_tm_seconds_qy": "travel_seconds",
         "incident_response_seconds_qy": "response_seconds",
+        "dispatch_response_seconds_qy": "dispatch_wait_seconds",
+        "incident_classification": "initial_call_type",
+        "incident_classification_group": "final_call_type",
         "zipcode": "zipcode",
     }
     for src, dst in rename.items():
         if src in out.columns and dst not in out.columns:
             out = out.rename(columns={src: dst})
+    eng = pd.to_numeric(out.get("engines_assigned_quantity"), errors="coerce")
+    lad = pd.to_numeric(out.get("ladders_assigned_quantity"), errors="coerce")
+    if eng is not None and lad is not None:
+        apparatus = eng.fillna(0) + lad.fillna(0)
+        if apparatus.gt(0).any():
+            out = out.loc[apparatus.gt(0)].copy()
+    if "valid_incident_rspns_time_indc" in out.columns:
+        flag = out["valid_incident_rspns_time_indc"].astype(str).str.upper()
+        out = out.loc[flag.isin(["Y", "YES", "TRUE", "1"])].copy()
     if "travel_seconds" in out.columns:
         out["travel_seconds"] = pd.to_numeric(out["travel_seconds"], errors="coerce")
         out = out.loc[out["travel_seconds"].between(30, 3600)].copy()
@@ -127,9 +140,10 @@ def main():
         "primary_origin_layer_counts": feats["primary_origin_layer"].value_counts().to_dict()
         if len(feats) and "primary_origin_layer" in feats.columns
         else {},
-        "weather_nonnull": int(feats["wx_temp_c"].notna().sum())
-        if "wx_temp_c" in feats.columns
+        "call_type_nonnull": int((feats["initial_call_type"].fillna("") != "").sum())
+        if "initial_call_type" in feats.columns
         else 0,
+        "weather_nonnull": int(feats["wx_temp_c"].notna().sum()) if "wx_temp_c" in feats.columns else 0,
         "osm_routes_ok": osm_ok,
     }
     (args.processed / "travel_time_training_summary.json").write_text(

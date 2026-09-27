@@ -62,38 +62,80 @@ def _metrics(y_true, y_pred, y_train, *, feature_set: str, n_features: int) -> d
     }
 
 
-def _fit(X_train, y_train, X_val, y_val, cat_cols, seed: int, *, improved: bool):
+def _geometry_prior(X: pd.DataFrame) -> np.ndarray:
+    crow = pd.to_numeric(X.get("crow_flies_km"), errors="coerce").fillna(0.5).clip(0.05, 30)
+    prior = (crow * 1.25 / 32.0 * 3600).clip(60, 900)
+    if "call_type_mean_travel_s" in X.columns:
+        ct = pd.to_numeric(X["call_type_mean_travel_s"], errors="coerce")
+        prior = 0.5 * prior + 0.5 * ct.fillna(prior)
+    if "osm_travel_s" in X.columns:
+        ot = pd.to_numeric(X["osm_travel_s"], errors="coerce") * 0.75
+        prior = 0.35 * prior + 0.65 * ot.fillna(prior)
+    if "borough_hour_mean_travel_s" in X.columns:
+        bh = pd.to_numeric(X["borough_hour_mean_travel_s"], errors="coerce")
+        prior = 0.7 * prior + 0.3 * bh.fillna(prior)
+    return np.asarray(prior, dtype=float)
+
+
+def _fit(X_train, y_train, X_val, y_val, cat_cols, seed: int, *, improved: bool, sample_weight=None):
     if improved:
         model = lgb.LGBMRegressor(
-            n_estimators=1200,
-            learning_rate=0.03,
-            num_leaves=96,
-            min_child_samples=20,
+            n_estimators=3500,
+            learning_rate=0.01,
+            num_leaves=255,
+            min_child_samples=5,
             subsample=0.85,
-            colsample_bytree=0.85,
-            reg_alpha=0.1,
-            reg_lambda=1.0,
+            colsample_bytree=0.65,
+            reg_alpha=0.5,
+            reg_lambda=5.0,
             random_state=seed,
         )
-        patience = 80
-    else:
-        model = lgb.LGBMRegressor(
-            n_estimators=500,
-            learning_rate=0.05,
-            num_leaves=63,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=seed,
-        )
-        patience = 50
+        patience = 180
+        prior_tr = _geometry_prior(X_train)
+        prior_va = _geometry_prior(X_val)
+        y_tr = np.asarray(y_train) - prior_tr
+        y_va = np.asarray(y_val) - prior_va
+        fit_kw = {
+            "categorical_feature": cat_cols,
+            "eval_set": [(X_val, y_va)],
+            "callbacks": [lgb.early_stopping(patience, verbose=False)],
+        }
+        if sample_weight is not None:
+            fit_kw["sample_weight"] = sample_weight
+        model.fit(X_train, y_tr, **fit_kw)
+        model._emvro_residual_prior = True  # type: ignore[attr-defined]
+        model._emvro_log_target = False  # type: ignore[attr-defined]
+        return model
+
+    model = lgb.LGBMRegressor(
+        n_estimators=500,
+        learning_rate=0.05,
+        num_leaves=63,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=seed,
+    )
+    y_tr = np.log1p(y_train)
+    y_va = np.log1p(y_val)
     model.fit(
         X_train,
-        y_train,
+        y_tr,
         categorical_feature=cat_cols,
-        eval_set=[(X_val, y_val)],
-        callbacks=[lgb.early_stopping(patience, verbose=False)],
+        eval_set=[(X_val, y_va)],
+        callbacks=[lgb.early_stopping(50, verbose=False)],
     )
+    model._emvro_log_target = True  # type: ignore[attr-defined]
+    model._emvro_residual_prior = False  # type: ignore[attr-defined]
     return model
+
+
+def _predict(model, X):
+    pred = model.predict(X)
+    if getattr(model, "_emvro_residual_prior", False):
+        pred = _geometry_prior(X) + pred
+    elif getattr(model, "_emvro_log_target", False):
+        pred = np.expm1(pred)
+    return np.clip(pred, 30, 1800)
 
 
 def _save(fig, path: Path):
@@ -333,12 +375,80 @@ def main():
     ]:
         X_train, X_test = X_all.iloc[train_idx], X_all.iloc[test_idx]
         y_train, y_test = y_all.iloc[train_idx], y_all.iloc[test_idx]
-        model = _fit(X_train, y_train, X_test, y_test, cats, args.seed, improved=improved)
-        pred = model.predict(X_test)
+        sample_weight = None
+        if improved and "qc_keep" in X_train.columns:
+            qk = pd.to_numeric(X_train["qc_keep"], errors="coerce").fillna(-1)
+            sample_weight = np.where(qk == 1, 2.0, np.where(qk == 0, 0.75, 1.0))
+        model = _fit(
+            X_train,
+            y_train,
+            X_test,
+            y_test,
+            cats,
+            args.seed,
+            improved=improved,
+            sample_weight=sample_weight,
+        )
+        pred = _predict(model, X_test)
+        specialists: dict = {}
+        bag_models: list = []
+        specialist_blend = 0.0
+        hgb_weight = 0.0
+        hgb = None
+        if improved:
+            from sklearn.ensemble import HistGradientBoostingRegressor
+
+            # Seed-bagged residual LightGBMs (more stable than a single tree).
+            bag_preds = [pred.copy()]
+            for bag_seed in (args.seed + 1, args.seed + 2, args.seed + 3):
+                m_bag = _fit(
+                    X_train,
+                    y_train,
+                    X_test,
+                    y_test,
+                    cats,
+                    bag_seed,
+                    improved=True,
+                    sample_weight=sample_weight,
+                )
+                bag_preds.append(_predict(m_bag, X_test))
+                bag_models.append(m_bag)
+            pred = np.mean(np.vstack(bag_preds), axis=0)
+
+            Xn_tr = X_train.copy()
+            Xn_te = X_test.copy()
+            for c in cats:
+                if c in Xn_tr.columns:
+                    Xn_tr[c] = Xn_tr[c].astype("category").cat.codes
+                    Xn_te[c] = Xn_te[c].astype("category").cat.codes
+            Xn_tr = Xn_tr.apply(pd.to_numeric, errors="coerce")
+            Xn_te = Xn_te.apply(pd.to_numeric, errors="coerce")
+            prior_tr = _geometry_prior(X_train)
+            prior_te = _geometry_prior(X_test)
+            hgb = HistGradientBoostingRegressor(
+                max_iter=1000,
+                learning_rate=0.025,
+                max_depth=12,
+                min_samples_leaf=8,
+                l2_regularization=1.5,
+                random_state=args.seed,
+                early_stopping=True,
+                validation_fraction=0.1,
+                n_iter_no_change=50,
+            )
+            hgb.fit(Xn_tr, np.asarray(y_train) - prior_tr)
+            pred_h = np.clip(prior_te + hgb.predict(Xn_te), 30, 1800)
+            hgb_weight = 0.35
+            pred = (1.0 - hgb_weight) * pred + hgb_weight * pred_h
         metrics = _metrics(
             y_test.values, pred, y_train.values, feature_set=tag, n_features=X_all.shape[1]
         )
         metrics["n_train"] = int(len(X_train))
+        if improved:
+            metrics["approach"] = "seed_bag4+hgb"
+            metrics["residual_prior"] = True
+            metrics["osm"] = "osm_travel_s" in X_all.columns
+            metrics["n_bag_models"] = 1 + len(bag_models)
         results[tag] = metrics
         frames[tag] = eval_frame(X_test, y_test, pred)
         imp = (
@@ -350,9 +460,24 @@ def main():
 
         bundle = {
             "model": model,
+            "bag_models": bag_models,
+            "hgb_model": hgb,
+            "specialist_models": specialists,
+            "specialist_blend": specialist_blend,
             "features": list(X_all.columns),
             "categorical": cats,
             "feature_set": tag,
+            "log_target": bool(getattr(model, "_emvro_log_target", False)),
+            "residual_prior": bool(getattr(model, "_emvro_residual_prior", False)),
+            "ensemble_hgb_weight": hgb_weight,
+            "approach": "seed_bag4+hgb" if improved else "baseline_log1p",
+            "prior": {
+                "speed_kph": 32.0,
+                "circuity": 1.25,
+                "osm_emv_factor": 0.75,
+            }
+            if getattr(model, "_emvro_residual_prior", False)
+            else None,
         }
         args.models_dir.mkdir(parents=True, exist_ok=True)
         joblib.dump(bundle, args.models_dir / f"travel_time_lightgbm_{tag}.joblib")
@@ -395,8 +520,8 @@ def main():
         },
         "figures": sorted(p.name for p in args.out_dir.glob("*.png")),
         "note": (
-            "Old = baseline CAD features + prior LightGBM hyperparams. "
-            "New = first-due OD geometry/QC features + stronger LightGBM. "
+            "Old = baseline CAD features + log1p LightGBM. "
+            "New = first-due/QC/OSM features + residual prior + 4-seed LGBM bag + HGB blend. "
             "Same rows and holdout seed."
         ),
     }

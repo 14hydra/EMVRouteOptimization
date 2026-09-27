@@ -1,42 +1,46 @@
 {
   "old": {
     "feature_set": "baseline",
-    "n_features": 51,
-    "n_test": 674,
-    "mae_seconds": 96.81376618137476,
-    "rmse_seconds": 132.55643387037713,
-    "r2": 0.06383223380266845,
-    "median_abs_error_seconds": 76.12009184884243,
-    "baseline_mae_predict_median": 99.91543026706232,
-    "mae_improvement_vs_median_pct": 3.1042893749215428,
-    "pct_within_3_min": 87.3887240356083,
-    "pct_within_5_min": 96.73590504451039,
-    "pct_within_10_min": 99.25816023738872,
-    "bias_seconds": 0.4285411773181111,
-    "n_train": 2692
+    "n_features": 56,
+    "n_test": 7974,
+    "mae_seconds": 75.95558883208653,
+    "rmse_seconds": 113.9320997904356,
+    "r2": 0.2527847211304526,
+    "median_abs_error_seconds": 51.81867977172436,
+    "baseline_mae_predict_median": 95.13907700025082,
+    "mae_improvement_vs_median_pct": 20.163626527629354,
+    "pct_within_3_min": 91.66039628793578,
+    "pct_within_5_min": 97.3288186606471,
+    "pct_within_10_min": 99.69902182091799,
+    "bias_seconds": -16.434834638016387,
+    "n_train": 31894
   },
   "new": {
     "feature_set": "full",
-    "n_features": 64,
-    "n_test": 674,
-    "mae_seconds": 84.08393655311673,
-    "rmse_seconds": 119.2126862382741,
-    "r2": 0.24282370661471597,
-    "median_abs_error_seconds": 61.776355228987285,
-    "baseline_mae_predict_median": 99.91543026706232,
-    "mae_improvement_vs_median_pct": 15.844893698230445,
-    "pct_within_3_min": 89.76261127596439,
-    "pct_within_5_min": 97.62611275964392,
-    "pct_within_10_min": 99.70326409495549,
-    "bias_seconds": -4.488326852895082,
-    "n_train": 2692
+    "n_features": 74,
+    "n_test": 7974,
+    "mae_seconds": 68.60024392709076,
+    "rmse_seconds": 99.08768887694663,
+    "r2": 0.43481199196570874,
+    "median_abs_error_seconds": 49.41854465136609,
+    "baseline_mae_predict_median": 95.13907700025082,
+    "mae_improvement_vs_median_pct": 27.89477668896252,
+    "pct_within_3_min": 93.77978429897166,
+    "pct_within_5_min": 98.34462001504892,
+    "pct_within_10_min": 99.88713318284425,
+    "bias_seconds": 1.188569483424216,
+    "n_train": 31894,
+    "approach": "seed_bag4+hgb",
+    "residual_prior": true,
+    "osm": true,
+    "n_bag_models": 4
   },
   "delta": {
-    "mae_seconds": -12.729829628258031,
-    "rmse_seconds": -13.343747632103032,
-    "r2": 0.17899147281204753,
-    "pct_within_5_min": 0.8902077151335277,
-    "median_abs_error_seconds": -14.34373661985515
+    "mae_seconds": -7.355344904995775,
+    "rmse_seconds": -14.844410913488971,
+    "r2": 0.18202727083525616,
+    "pct_within_5_min": 1.015801354401816,
+    "median_abs_error_seconds": -2.4001351203582715
   },
   "figures": [
     "01_metrics_bars.png",
@@ -47,5 +51,5 @@
     "06_delta_summary.png",
     "07_new_feature_importance.png"
   ],
-  "note": "Old = baseline CAD features + prior LightGBM hyperparams. New = first-due OD geometry/QC features + stronger LightGBM. Same rows and holdout seed."
+  "note": "Old = baseline CAD features + log1p LightGBM. New = first-due/QC/OSM features + residual prior + 4-seed LGBM bag + HGB blend. Same rows and holdout seed."
 }

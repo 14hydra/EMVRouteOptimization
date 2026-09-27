@@ -1,42 +1,42 @@
 {
   "metrics": {
     "feature_set": "baseline",
-    "n_train": 2692,
-    "n_test": 674,
-    "mae_seconds": 96.81376618137476,
-    "rmse_seconds": 132.55643387037713,
-    "r2": 0.06383223380266845,
-    "median_abs_error_seconds": 76.12009184884243,
-    "mape_capped_pct": 35.534354324459954,
-    "baseline_mae_predict_median": 99.91543026706232,
-    "mae_improvement_vs_median_pct": 3.1042893749215428,
-    "pct_within_3_min": 87.3887240356083,
-    "pct_within_5_min": 96.73590504451039,
-    "pct_within_10_min": 99.25816023738872,
-    "mean_actual_seconds": 326.2952522255193,
-    "median_actual_seconds": 302.0,
-    "bias_seconds": 0.4285411773181111
+    "n_train": 31894,
+    "n_test": 7974,
+    "mae_seconds": 75.95558883208653,
+    "rmse_seconds": 113.9320997904356,
+    "r2": 0.2527847211304526,
+    "median_abs_error_seconds": 51.81867977172436,
+    "mape_capped_pct": 25.608665520117242,
+    "baseline_mae_predict_median": 95.13907700025082,
+    "mae_improvement_vs_median_pct": 20.163626527629354,
+    "pct_within_3_min": 91.66039628793578,
+    "pct_within_5_min": 97.3288186606471,
+    "pct_within_10_min": 99.69902182091799,
+    "mean_actual_seconds": 322.01968898921496,
+    "median_actual_seconds": 301.0,
+    "bias_seconds": -16.434834638016387
   },
   "mae_by_borough_min": {
-    "MANHATTAN": 1.69,
-    "QUEENS": 1.64,
-    "BRONX": 1.63,
-    "BROOKLYN": 1.6,
-    "STATEN ISLAND": 1.13
+    "MANHATTAN": 1.41,
+    "BRONX": 1.33,
+    "QUEENS": 1.2,
+    "STATEN ISLAND": 1.16,
+    "BROOKLYN": 1.15
   },
   "mae_by_hour_min": {
-    "night 0\u20136": 1.31,
-    "morning 6\u201310": 1.98,
-    "midday 10\u201316": 1.66,
-    "evening 16\u201320": 1.61,
-    "late 20\u201324": 1.48
+    "night 0\u20136": 1.11,
+    "morning 6\u201310": 1.32,
+    "midday 10\u201316": 1.35,
+    "evening 16\u201320": 1.26,
+    "late 20\u201324": 1.18
   },
   "mae_by_distance_min": {
-    "0\u20130.5": 1.54,
-    "0.5\u20131": 1.69,
-    "1\u20132": 1.72,
-    "2\u20134": 1.27,
-    "4\u20138": 0.51,
+    "0\u20130.5": 1.32,
+    "0.5\u20131": 1.22,
+    "1\u20132": 1.22,
+    "2\u20134": 1.22,
+    "4\u20138": 0.75,
     "8+": NaN
   },
   "figures": [
@@ -50,9 +50,9 @@
     "08_calibration.png",
     "09_feature_importance.png"
   ],
-  "out_dir": "data/figures/model_eval_baseline",
+  "out_dir": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/model_eval_baseline",
   "mae_by_origin_layer_min": {
-    "fdny_firehouse": 1.63,
-    "csl": 1.57
+    "csl": 1.42,
+    "fdny_firehouse": 1.22
   }
 }

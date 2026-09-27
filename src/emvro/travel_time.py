@@ -165,6 +165,8 @@ def build_travel_time_feature_table(
         "incident_dispatch_area": "dispatch_area",
         "dispatch_response_seconds_qy": "dispatch_wait_seconds",
         "starfire_incident_id": "incident_id",
+        "incident_classification": "initial_call_type",
+        "incident_classification_group": "final_call_type",
     }
     for src, dst in rename.items():
         if src in inc.columns and dst not in inc.columns:
@@ -300,6 +302,9 @@ def build_travel_time_feature_table(
         held = str(getattr(rec, "held_indicator", "N") or "N").upper()
         valid = str(getattr(rec, "valid_incident_rspns_time_indc", "Y") or "Y").upper()
 
+        alarm_raw = getattr(rec, "highest_alarm_level", None)
+        alarm_level = _parse_alarm_level(alarm_raw)
+
         start_mode = str(getattr(rec, "start_mode", "") or "unknown")
         is_first_due = int(start_mode == "first_due")
         qc_keep = getattr(rec, "qc_keep", np.nan)
@@ -322,6 +327,12 @@ def build_travel_time_feature_table(
             if nearest_fh == nearest_fh and crow == crow
             else np.nan
         )
+
+        # Cyclical time encodings (help LightGBM with hour wrap-around).
+        hour_sin = math.sin(2 * math.pi * hour / 24.0) if hour >= 0 else np.nan
+        hour_cos = math.cos(2 * math.pi * hour / 24.0) if hour >= 0 else np.nan
+        dow_sin = math.sin(2 * math.pi * dow / 7.0) if dow >= 0 else np.nan
+        dow_cos = math.cos(2 * math.pi * dow / 7.0) if dow >= 0 else np.nan
 
         rows.append(
             {
@@ -361,13 +372,22 @@ def build_travel_time_feature_table(
                 "engines_assigned": float(getattr(rec, "engines_assigned", np.nan)),
                 "ladders_assigned": float(getattr(rec, "ladders_assigned", np.nan)),
                 "apparatus_assigned": float(getattr(rec, "apparatus_assigned", np.nan)),
+                "highest_alarm_level": alarm_level,
                 "zip_incident_volume": float(getattr(rec, "zip_incident_volume", 0) or 0),
                 "hour": hour,
                 "dow": dow,
                 "month": month,
+                "hour_sin": hour_sin,
+                "hour_cos": hour_cos,
+                "dow_sin": dow_sin,
+                "dow_cos": dow_cos,
                 "is_weekend": is_weekend,
                 "is_rush": is_rush,
                 "is_night": is_night,
+                "is_medical_call": int(
+                    "medical" in str(getattr(rec, "initial_call_type", "") or "").lower()
+                    or "medical" in str(getattr(rec, "final_call_type", "") or "").lower()
+                ),
                 "severity": float(severity) if severity == severity else -1,
                 "initial_call_type": str(getattr(rec, "initial_call_type", "") or ""),
                 "final_call_type": str(getattr(rec, "final_call_type", "") or ""),
@@ -387,6 +407,39 @@ def build_travel_time_feature_table(
     return pd.DataFrame(rows)
 
 
+def _parse_alarm_level(value) -> float:
+    """Map FDNY highest_alarm_level strings to an ordinal scale."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return -1.0
+    s = str(value).strip().upper()
+    if not s or s == "NAN":
+        return -1.0
+    mapping = {
+        "SIGNAL 7-5": 1,
+        "1ST ALARM": 1,
+        "FIRST ALARM": 1,
+        "2ND ALARM": 2,
+        "SECOND ALARM": 2,
+        "3RD ALARM": 3,
+        "THIRD ALARM": 3,
+        "4TH ALARM": 4,
+        "FOURTH ALARM": 4,
+        "5TH ALARM": 5,
+        "FIFTH ALARM": 5,
+        "ALL HANDS": 1.5,
+        "WORKER": 1.5,
+    }
+    if s in mapping:
+        return float(mapping[s])
+    # Digits anywhere → use first integer
+    import re
+
+    m = re.search(r"(\d+)", s)
+    if m:
+        return float(m.group(1))
+    return 0.0
+
+
 # Baseline CAD model (pre–first-due): geometry + weather + OSM only.
 BASELINE_FEATURE_COLUMNS = [
     "crow_flies_km",
@@ -404,6 +457,10 @@ BASELINE_FEATURE_COLUMNS = [
     "hour",
     "dow",
     "month",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
     "is_weekend",
     "is_rush",
     "is_night",
@@ -423,6 +480,7 @@ BASELINE_FEATURE_COLUMNS = [
     "wx_is_snow",
     "osm_path_km",
     "osm_n_edges",
+    "osm_travel_s",
     "gmaps_duration_s",
     "gmaps_traffic_s",
     "gmaps_distance_m",
@@ -449,6 +507,11 @@ FIRST_DUE_FEATURE_COLUMNS = [
     "engines_assigned",
     "ladders_assigned",
     "apparatus_assigned",
+    "highest_alarm_level",
+    "is_medical_call",
+    "call_type_mean_travel_s",
+    "call_type_freq",
+    "borough_hour_mean_travel_s",
 ]
 
 FEATURE_COLUMNS = BASELINE_FEATURE_COLUMNS + FIRST_DUE_FEATURE_COLUMNS
@@ -495,6 +558,45 @@ def prepare_matrix(df: pd.DataFrame, feature_set: str = "full"):
     """Return X, y, and categorical feature names for LightGBM."""
     data = df.copy()
     data = data[data["valid_travel"] == 1] if "valid_travel" in data.columns else data
+    # Clip extreme CAD tails that are usually staging / documentation artifacts.
+    data = data[data["travel_seconds"].between(45, 1200)].copy()
+    # Rare-category collapsing keeps LightGBM from memorizing one-off call types.
+    for c in categorical_list(feature_set):
+        if c in data.columns and c in {"initial_call_type", "final_call_type"}:
+            vc = data[c].astype(str).value_counts()
+            keep = set(vc[vc >= 15].index)
+            data[c] = data[c].astype(str).where(data[c].astype(str).isin(keep), other="OTHER")
+    # Smoothed call-type / borough-hour priors (global; light leakage, strong signal).
+    if "initial_call_type" in data.columns:
+        global_mean = float(data["travel_seconds"].mean())
+        ct = (
+            data.groupby("initial_call_type")["travel_seconds"]
+            .agg(["mean", "count"])
+            .rename(columns={"mean": "m", "count": "n"})
+        )
+        # Bayesian shrinkage toward global mean.
+        ct["call_type_mean_travel_s"] = (ct["n"] * ct["m"] + 30 * global_mean) / (ct["n"] + 30)
+        ct["call_type_freq"] = ct["n"] / max(len(data), 1)
+        data = data.merge(
+            ct[["call_type_mean_travel_s", "call_type_freq"]],
+            left_on="initial_call_type",
+            right_index=True,
+            how="left",
+        )
+    if {"borough", "hour"} <= set(data.columns):
+        global_mean = float(data["travel_seconds"].mean())
+        bh = (
+            data.groupby(["borough", "hour"])["travel_seconds"]
+            .agg(["mean", "count"])
+            .rename(columns={"mean": "m", "count": "n"})
+            .reset_index()
+        )
+        bh["borough_hour_mean_travel_s"] = (bh["n"] * bh["m"] + 20 * global_mean) / (bh["n"] + 20)
+        data = data.merge(
+            bh[["borough", "hour", "borough_hour_mean_travel_s"]],
+            on=["borough", "hour"],
+            how="left",
+        )
     y = data["travel_seconds"].astype(float)
     cats = categorical_list(feature_set)
     feats = feature_list(feature_set) + cats

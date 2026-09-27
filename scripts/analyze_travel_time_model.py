@@ -264,12 +264,67 @@ def main():
     df = pd.read_csv(args.data, low_memory=False)
     bundle = joblib.load(args.model)
     model = bundle["model"]
+    log_target = bool(bundle.get("log_target", False))
 
     X, y, _ = prepare(df)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=args.test_size, random_state=args.seed
     )
-    pred = model.predict(X_test)
+    def _geometry_prior(X: pd.DataFrame) -> np.ndarray:
+        crow = pd.to_numeric(X.get("crow_flies_km"), errors="coerce").fillna(0.5).clip(0.05, 30)
+        prior = (crow * 1.25 / 32.0 * 3600).clip(60, 900)
+        if "call_type_mean_travel_s" in X.columns:
+            ct = pd.to_numeric(X["call_type_mean_travel_s"], errors="coerce")
+            prior = 0.5 * prior + 0.5 * ct.fillna(prior)
+        if "osm_travel_s" in X.columns:
+            ot = pd.to_numeric(X["osm_travel_s"], errors="coerce") * 0.75
+            prior = 0.35 * prior + 0.65 * ot.fillna(prior)
+        if "borough_hour_mean_travel_s" in X.columns:
+            bh = pd.to_numeric(X["borough_hour_mean_travel_s"], errors="coerce")
+            prior = 0.7 * prior + 0.3 * bh.fillna(prior)
+        return np.asarray(prior, dtype=float)
+
+    def _predict_one(m, X):
+        p = m.predict(X)
+        if bundle.get("residual_prior"):
+            p = _geometry_prior(X) + p
+        elif log_target:
+            p = np.expm1(p)
+        return np.clip(p, 30, 1800)
+
+    pred = _predict_one(model, X_test)
+
+    bag_models = bundle.get("bag_models") or []
+    if bag_models:
+        bag_preds = [pred] + [_predict_one(m, X_test) for m in bag_models]
+        pred = np.mean(np.vstack(bag_preds), axis=0)
+
+    specialists = bundle.get("specialist_models") or {}
+    specialist_blend = float(bundle.get("specialist_blend") or 0.0)
+    if specialists and specialist_blend > 0 and "is_medical_call" in X_test.columns:
+        pred_g = pred.copy()
+        med = (pd.to_numeric(X_test["is_medical_call"], errors="coerce").fillna(0) == 1).to_numpy()
+        for name, mask in [("med", med), ("nonmed", ~med)]:
+            m_spec = specialists.get(name)
+            if m_spec is None or not np.any(mask):
+                continue
+            pred[mask] = (
+                specialist_blend * _predict_one(m_spec, X_test.loc[mask])
+                + (1.0 - specialist_blend) * pred_g[mask]
+            )
+
+    hgb = bundle.get("hgb_model")
+    hgb_w = float(bundle.get("ensemble_hgb_weight") or 0.0)
+    if hgb is not None and hgb_w > 0:
+        cats = bundle.get("categorical") or []
+        Xn = X_test.copy()
+        for c in cats:
+            if c in Xn.columns:
+                Xn[c] = Xn[c].astype("category").cat.codes
+        Xn = Xn.apply(pd.to_numeric, errors="coerce")
+        prior_te = _geometry_prior(X_test)
+        pred_h = np.clip(prior_te + hgb.predict(Xn), 30, 1800)
+        pred = (1.0 - hgb_w) * pred + hgb_w * pred_h
 
     eval_df = X_test.copy()
     eval_df["y_true"] = y_test.values
