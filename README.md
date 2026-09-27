@@ -15,16 +15,16 @@ It does **not** publish the GPS of the apparatus at assignment time (privacy). W
 
 **Scope: firetrucks only** (FDNY CAD). Ambulances / EMS stations / hospital bays are out of scope by default (legacy loaders remain behind `--legacy-ems`).
 
-We reconstruct usable OD pairs by:
+We reconstruct usable OD pairs by (**default: first-due**):
 
-1. Treating each incident ZIP’s **MODZCTA centroid** as the destination.
-2. Using `incident_borough` (and alarm-box borough when present) as the borough prior.
-3. Choosing the nearest **FDNY firehouse** (`hc8x-tcnd`) in that borough.
-4. In **hybrid** mode, using a **synthetic CSL** (FDNY alarm-box intersection in a high-volume ZIP) when it is closer than the best firehouse — a proxy for an already-on-the-road unit.
-5. Flagging each row with `start_source` / `depot_layer` / `start_mode`.
+1. Locating the incident at its **alarm-box** coordinates (`v57i-gtxb`).
+2. Spatially joining to the first-due **engine** polygon (`bst7-5464`).
+3. Mapping that engine to its **firehouse** (`hc8x-tcnd`).
+4. Falling back to nearest firehouse / CSL **hybrid** when the chain misses.
+5. QC via implied speed + nearest-house flags (`qc_*`); see `docs/starting_locations.md`.
 
-For the **travel-time model**, we do not commit to one true start: we feed
-`firehouse_km` / `csl_km` together so the model can learn times under origin
+For the **travel-time model**, we still keep multi-origin distances
+(`firehouse_km` / `csl_km`) so the model can learn under residual origin
 uncertainty (see `docs/travel_time_training.md`).
 
 ## Chosen datasets
@@ -33,7 +33,8 @@ uncertainty (see `docs/travel_time_training.md`).
 |------|--------|--------------|
 | Incidents + travel times | FDNY Fire Incident Dispatch Data | `8m42-w767` |
 | Preferred EMV starts | FDNY Firehouse Listing | `hc8x-tcnd` |
-| CSL intersection proxies | In-Service Alarm Box Locations | `v57i-gtxb` |
+| First-due company areas | Fire Companies (engine polygons) | `bst7-5464` |
+| Incident / CSL geometry | In-Service Alarm Box Locations | `v57i-gtxb` |
 | Incident ZIP geometry | Modified Zip Code Tabulation Areas (MODZCTA) | `pri4-ifjk` |
 | Street network / widths | NYC LION | `2v4z-66xt` |
 | Street attributes | OpenStreetMap (NYC extract) | OSM |

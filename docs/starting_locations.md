@@ -16,38 +16,48 @@ route reconstruction and for supervised travel-time models that need OD geometry
 Chosen companion layers (OSM + LION) describe the street network, not where each deployed
 unit started.
 
-## What we do instead
+## What we do instead (default: first-due)
 
-In `src/emvro/depots.py` + `src/emvro/csl.py` (+ travel-time multi-origin features):
+In `src/emvro/first_due.py` (+ `depots.py` / `csl.py` fallbacks):
 
-1. **Destination** ≈ centroid / representative point of the incident ZIP from **MODZCTA** (`pri4-ifjk`).
-2. **Borough prior** from `incident_borough` (alarm-box borough when useful).
-3. **Static starts** ≈ nearest **FDNY firehouse** (`hc8x-tcnd`).
-4. **Synthetic CSLs** ≈ FDNY **alarm-box** intersections (`v57i-gtxb`) in the highest-volume ZIPs per borough (FDNY demand weights). ZIP-centroid CSLs are the fallback if alarm boxes are missing.
-5. **`start_mode=hybrid`** (default): use the CSL when it is closer to the destination than the best firehouse (proxy for an already-on-the-road / post-coverage unit); otherwise use the firehouse.
-6. Persist `start_source`, `depot_layer`, `start_mode`, `depot_name`, and `crow_flies_km`.
-7. For **travel-time training**, keep `firehouse_km` and `csl_km` as features so the model does not need one correct start — see `docs/travel_time_training.md`.
+1. **Incident point** ≈ in-service **alarm-box** coordinates (`v57i-gtxb`), joined by
+   borough + box number (city-geocoded intersections — no per-row Geosupport needed).
+2. **First-due company** ≈ spatial join to **engine** polygons from Fire Companies
+   (`bst7-5464`, NY State Plane).
+3. **Start** ≈ that engine’s **firehouse** (`hc8x-tcnd`), parsed from `facilityname`
+   (`Engine 22/Ladder 13` → Engine 22). Engine coverage matches the boundary file 1:1.
+4. **Fallback** when the chain misses: nearest firehouse / CSL **hybrid**
+   (`--fallback-mode hybrid`).
+5. **QC** (`qc_speed_flag`, `qc_not_nearest_house`, `qc_keep`): crow-flies implied speed
+   vs `travel_seconds`, plus whether the assigned house is the network-nearest house.
+   Very high speeds → origin too far (likely on-road / relocated unit). Very low speeds →
+   geocode error or a unit from farther away. Run key results with and without `qc_keep`.
+
+Legacy `--start-mode static|csl|hybrid` keeps the older nearest-depot heuristics.
 
 ## Limits (be honest in the ASI notebook)
 
 - Inferred starts are **not** ground-truth CAD unit GPS.
-- Alarm-box CSLs approximate on-road posts; they are not an official “available unit” feed.
-- Crow-flies nearest firehouse ignores one-way streets and real dispatch policy.
-- Public destinations are ZIP-level, not exact blocks.
-- Engine / ladder assignment counts filter to apparatus responses, but do not identify *which* company rolled.
+- First-arriving unit ≠ first-due company when units respond from the road, are relocated,
+  or are already committed — speed / nearest-house flags are the main defense.
+- ~30% of CAD box numbers do not match the current in-service alarm-box listing; those rows
+  fall back to ZIP-centroid destinations + nearest-house/CSL starts.
+- Public CAD still lacks exact block endpoints when the box join misses.
 
 ## CLI
 
 ```bash
-python scripts/download_datasets.py --limit 5000
-python scripts/build_od_pairs.py --start-mode hybrid   # or static | csl
+python scripts/download_datasets.py --limit 5000   # includes fire_companies.geojson
+python scripts/build_od_pairs.py                   # default --start-mode first_due
+python scripts/build_od_pairs.py --start-mode hybrid   # legacy nearest-depot rule
+PYTHONPATH=src python scripts/visualize_data.py
 PYTHONPATH=src python scripts/build_travel_time_training_set.py
 PYTHONPATH=src python scripts/train_travel_time_model.py
 ```
 
 ## Next upgrades
 
-- Replace alarm-box CSLs with true high-degree LION/OSM intersections per battalion.
+- Geosupport / Geoclient for unmatched `ALARM_BOX_LOCATION` strings.
+- Optional OSMnx network distance (vs crow-flies) inside the speed QC.
 - Ask mentors about non-public CAD origin fields under a data-use agreement.
-- Add LION/OSM segment aggregates + weather into the travel-time feature table.
 - Optional `--legacy-ems` path keeps the old ambulance OD builder for side comparisons only.

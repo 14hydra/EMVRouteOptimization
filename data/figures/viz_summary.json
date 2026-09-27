@@ -5,10 +5,11 @@
     "03_distance_vs_travel.png",
     "04_od_spatial.png",
     "05_depot_inventory.png",
-    "06_gmaps_control.png"
+    "06_gmaps_control.png",
+    "07_first_due_qc.png"
   ],
   "map": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/emv_nyc_map.html",
-  "od_rows": 24142,
+  "od_rows": 3465,
   "gmaps_control_rows": 0,
   "google_maps_key_present": false
 }

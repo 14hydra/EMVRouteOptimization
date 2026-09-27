@@ -53,6 +53,39 @@ def _load(raw: Path, processed: Path, samples: Path):
     return od, firehouses, csls, gmaps
 
 
+def fig_first_due_qc(od: pd.DataFrame, out: Path):
+    """Start-mode mix + implied-speed QC for the first-due pipeline."""
+    usable = od.dropna(subset=["start_lat", "dest_lat"]).copy()
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    if "start_mode" in usable.columns:
+        counts = usable["start_mode"].fillna("missing").value_counts()
+        axes[0].bar(counts.index.astype(str), counts.values, color="#d62728")
+        axes[0].set_title("Start mode (first-due vs fallback)")
+        axes[0].tick_params(axis="x", rotation=20)
+        axes[0].set_ylabel("Incidents")
+    else:
+        axes[0].axis("off")
+
+    if "qc_speed_flag" in usable.columns:
+        qc = usable["qc_speed_flag"].fillna("unknown").value_counts()
+        axes[1].bar(qc.index.astype(str), qc.values, color=["#2ca02c", "#ff7f0e", "#d62728", "#7f7f7f"][: len(qc)])
+        axes[1].set_title("Origin QC (crow-flies implied speed)")
+        axes[1].tick_params(axis="x", rotation=20)
+    elif "implied_speed_kph" in usable.columns:
+        spd = pd.to_numeric(usable["implied_speed_kph"], errors="coerce").dropna()
+        spd = spd[(spd > 0) & (spd < 120)]
+        axes[1].hist(spd, bins=40, color="#1f77b4")
+        axes[1].set_title("Implied crow-flies speed (km/h)")
+        axes[1].set_xlabel("km/h")
+    else:
+        axes[1].axis("off")
+
+    fig.tight_layout()
+    fig.savefig(out / "07_first_due_qc.png", dpi=160)
+    plt.close(fig)
+
+
 def fig_layer_and_mode(od: pd.DataFrame, out: Path):
     usable = od.dropna(subset=["start_lat", "dest_lat"]).copy()
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -115,12 +148,12 @@ def fig_spatial_scatter(od: pd.DataFrame, out: Path):
     df = od.dropna(subset=["start_lat", "start_lon", "dest_lat", "dest_lon"]).copy()
     sample = df.sample(n=min(800, len(df)), random_state=42)
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.scatter(sample["dest_lon"], sample["dest_lat"], s=10, alpha=0.35, c="#ff7f0e", label="Incident ZIP centroid")
-    ax.scatter(sample["start_lon"], sample["start_lat"], s=10, alpha=0.35, c="#1f77b4", label="Inferred start")
+    ax.scatter(sample["dest_lon"], sample["dest_lat"], s=10, alpha=0.35, c="#ff7f0e", label="Incident (alarm box / ZIP)")
+    ax.scatter(sample["start_lon"], sample["start_lat"], s=10, alpha=0.35, c="#d62728", label="Inferred firehouse start")
     # draw a few OD lines
     for _, r in sample.sample(n=min(60, len(sample)), random_state=1).iterrows():
         ax.plot([r["start_lon"], r["dest_lon"]], [r["start_lat"], r["dest_lat"]], color="gray", alpha=0.15, lw=0.8)
-    ax.set_title("NYC inferred OD pairs (sample)")
+    ax.set_title("NYC first-due OD pairs (sample)")
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
     ax.legend()
@@ -256,7 +289,8 @@ def build_folium_map(od, firehouses, csls, out: Path):
                 f"<br>mode={r.get('start_mode')}"
             ),
             "popup_end": (
-                f"Incident ZIP centroid<br>id={r.get('incident_id')}"
+                f"Incident<br>{r.get('dest_source', 'dest')}"
+                f"<br>id={r.get('incident_id')}"
                 f"<br>ZIP {_fmt_zip(r.get('zipcode'))}"
             ),
         }
@@ -311,7 +345,7 @@ def build_folium_map(od, firehouses, csls, out: Path):
         max-width: 340px;
     ">
       <div style="font-weight:700; margin-bottom:8px;">NYC firetruck trip map</div>
-      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ff7f0e;margin-right:8px;"></span>Incident ZIP centroid (destination)</div>
+      <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ff7f0e;margin-right:8px;"></span>Incident (alarm box / ZIP fallback)</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#d62728;margin-right:8px;"></span>Inferred start: FDNY firehouse</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9467bd;margin-right:8px;"></span>Inferred start: on-road staging (CSL)</div>
       <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#7f7f7f;margin-right:8px;"></span>Inferred start: other / fallback</div>
@@ -443,6 +477,7 @@ def main():
     fig_spatial_scatter(od, args.out)
     fig_depot_inventory(firehouses, csls, args.out)
     fig_gmaps_control(gmaps_file, args.out)
+    fig_first_due_qc(od, args.out)
     map_path = build_folium_map(od, firehouses, csls, args.out)
 
     summary = {

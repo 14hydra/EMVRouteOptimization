@@ -1,5 +1,5 @@
 {
-  "data_mode": "nyc_ems",
+  "data_mode": "nyc_firetrucks",
   "objective": {
     "mode": "response_time",
     "formal": "minimize sum_c w_c * min_{p in P} t(p,c) / sum_c w_c",
@@ -21,22 +21,20 @@
     "hour": 17
   },
   "demand": {
-    "incidents": 24142,
-    "cells": 174,
-    "weight_total": 23824.0,
-    "top_cell_share": 0.0175
+    "incidents": 3465,
+    "cells": 514,
+    "weight_total": 3057.0,
+    "top_cell_share": 0.0128
   },
   "candidates": {
-    "total": 451,
+    "total": 511,
     "by_layer": {
-      "csl": 294,
-      "ems_station": 64,
-      "hospital_bay": 59,
-      "demand_cell": 34
+      "csl": 255,
+      "fdny_firehouse": 219,
+      "demand_cell": 37
     },
     "anchor_layers": [
-      "ems_station",
-      "hospital_bay"
+      "fdny_firehouse"
     ]
   },
   "travel_time": {
@@ -55,9 +53,9 @@
       "graph": "/Users/sarpakalin/git/EMVRouteOptimization/data/raw/nyc_drive_rich.graphml",
       "hour": 17,
       "cutoff_s": 1200.0,
-      "sources": 256,
-      "pairs_resolved_share": 0.4762,
-      "plan_cells_with_graph_time_share": 0.9943,
+      "sources": 330,
+      "pairs_resolved_share": 0.4476,
+      "plan_cells_with_graph_time_share": 1.0,
       "nodes": 99491,
       "edges": 264344
     },
@@ -65,16 +63,16 @@
   },
   "search": {
     "stage1_surrogate": {
-      "greedy_objective": 325.9695,
-      "final_objective": 310.2645,
-      "swaps_applied": 16,
-      "candidates": 451
+      "greedy_objective": 302.1219,
+      "final_objective": 290.2964,
+      "swaps_applied": 18,
+      "candidates": 511
     },
     "stage2_graph": {
-      "greedy_objective": 251.8965,
-      "final_objective": 242.2707,
-      "swaps_applied": 9,
-      "candidates": 256,
+      "greedy_objective": 233.3916,
+      "final_objective": 221.9142,
+      "swaps_applied": 13,
+      "candidates": 330,
       "note": "posts re-picked on exact EMV graph times; reported metrics use this set"
     }
   },
@@ -83,139 +81,139 @@
     "patrol_plan": {
       "label": "patrol_plan",
       "n_posts": 24,
-      "expected_response_s": 242.3,
-      "median_response_s": 213.8,
-      "p90_response_s": 427.7,
-      "worst_cell_response_s": 2205.5,
-      "coverage_share_within_threshold": 0.9207,
+      "expected_response_s": 221.9,
+      "median_response_s": 201.5,
+      "p90_response_s": 381.4,
+      "worst_cell_response_s": 1198.2,
+      "coverage_share_within_threshold": 0.9506,
       "threshold_s": 480.0,
-      "demand_cells": 174
+      "demand_cells": 514
     },
     "baselines": [
       {
         "label": "best_24_facilities_only",
         "n_posts": 24,
-        "expected_response_s": 252.8,
-        "median_response_s": 216.1,
-        "p90_response_s": 423.6,
-        "worst_cell_response_s": 2205.5,
-        "coverage_share_within_threshold": 0.9263,
+        "expected_response_s": 225.3,
+        "median_response_s": 205.7,
+        "p90_response_s": 381.7,
+        "worst_cell_response_s": 1198.2,
+        "coverage_share_within_threshold": 0.9509,
         "threshold_s": 480.0,
-        "demand_cells": 174,
+        "demand_cells": 514,
         "note": "Equal-cost comparison: same number of units, but restricted to existing facilities (no on-road CSL-style posts).",
         "is_equal_cost_baseline": true
       },
       {
         "label": "all_facilities_stationary",
-        "n_posts": 123,
-        "expected_response_s": 176.6,
-        "median_response_s": 150.3,
-        "p90_response_s": 333.5,
-        "worst_cell_response_s": 932.4,
-        "coverage_share_within_threshold": 0.983,
+        "n_posts": 219,
+        "expected_response_s": 90.7,
+        "median_response_s": 83.9,
+        "p90_response_s": 159.4,
+        "worst_cell_response_s": 279.9,
+        "coverage_share_within_threshold": 1.0,
         "threshold_s": 480.0,
-        "demand_cells": 174,
-        "note": "Context only, not an equal-cost comparison: assumes a staffed unit sitting at every EMS station / hospital bay."
+        "demand_cells": 514,
+        "note": "Context only, not an equal-cost comparison: assumes a staffed unit sitting at every FDNY firehouse (and legacy EMS layers if --legacy-ems)."
       }
     ],
     "headline_vs_equal_cost_baseline": {
       "baseline": "best_24_facilities_only",
-      "expected_response_s_baseline": 252.8,
-      "expected_response_s_patrol": 242.3,
-      "expected_response_saved_s": 10.5,
-      "expected_response_pct_faster": 4.15,
-      "coverage_share_baseline": 0.9263,
-      "coverage_share_patrol": 0.9207,
-      "coverage_points_gained": -0.56
+      "expected_response_s_baseline": 225.3,
+      "expected_response_s_patrol": 221.9,
+      "expected_response_saved_s": 3.4,
+      "expected_response_pct_faster": 1.51,
+      "coverage_share_baseline": 0.9509,
+      "coverage_share_patrol": 0.9506,
+      "coverage_points_gained": -0.03
     }
   },
   "units": [
     {
       "unit_id": 1,
-      "home_base": "SBH HEALTH SYSTEM",
-      "home_base_layer": "hospital_bay",
+      "home_base": "Engine 53/Ladder 43",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        7,
-        3,
-        12,
-        17
+        18,
+        24,
+        11,
+        23,
+        7
       ],
-      "demand_share": 0.1445,
-      "loop_minutes": 37.09,
-      "loop_km": 24.81
+      "demand_share": 0.21,
+      "loop_minutes": 55.04,
+      "loop_km": 44.61
     },
     {
       "unit_id": 2,
-      "home_base": "UNIVERSITY HOSPITAL OF BROOKLYN",
-      "home_base_layer": "hospital_bay",
+      "home_base": "Battalion 38/Engine 234/Ladder 123",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        2,
-        9,
-        19,
-        10,
         8,
-        24
+        20,
+        14,
+        3
       ],
-      "demand_share": 0.2214,
-      "loop_minutes": 66.46,
-      "loop_km": 46.56
+      "demand_share": 0.1871,
+      "loop_minutes": 37.91,
+      "loop_km": 22.2
     },
     {
       "unit_id": 3,
-      "home_base": "LINCOLN MEDICAL/EMS 14",
-      "home_base_layer": "ems_station",
+      "home_base": "Bronx Borough Command",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        21,
-        14,
-        4,
-        23
+        2,
+        16,
+        17
       ],
-      "demand_share": 0.2062,
-      "loop_minutes": 27.2,
-      "loop_km": 15.54
+      "demand_share": 0.1865,
+      "loop_minutes": 20.89,
+      "loop_km": 13.08
     },
     {
       "unit_id": 4,
-      "home_base": "JAMAICA HOSPITAL MEDICAL CENTER",
-      "home_base_layer": "hospital_bay",
+      "home_base": "Battalion 50/Engine 298/Ladder 127",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        5,
+        21,
+        4,
         13,
-        6,
-        22,
-        11
+        1,
+        12
       ],
-      "demand_share": 0.1715,
-      "loop_minutes": 86.31,
-      "loop_km": 65.37
+      "demand_share": 0.1443,
+      "loop_minutes": 78.38,
+      "loop_km": 59.11
     },
     {
       "unit_id": 5,
-      "home_base": "FDNY EMS CMND - SEAVIEW CAMPUS",
-      "home_base_layer": "ems_station",
+      "home_base": "Battalion 42/Engine 243/Ladder 168",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        15
+        9,
+        19,
+        5
       ],
-      "demand_share": 0.0414,
-      "loop_minutes": 0.0,
-      "loop_km": 0.0
+      "demand_share": 0.0929,
+      "loop_minutes": 43.34,
+      "loop_km": 34.3
     },
     {
       "unit_id": 6,
-      "home_base": "BELVUE HOSP/OCME/EMS STATION 8",
-      "home_base_layer": "ems_station",
+      "home_base": "Engine 55",
+      "home_base_layer": "fdny_firehouse",
       "posts": [
-        18,
-        1,
-        16,
-        20
+        15,
+        6,
+        22,
+        10
       ],
-      "demand_share": 0.215,
-      "loop_minutes": 47.03,
-      "loop_km": 33.63
+      "demand_share": 0.1793,
+      "loop_minutes": 44.69,
+      "loop_km": 29.57
     }
   ],
-  "pairs_with_inferred_starts": "Candidate posts and home bases are the same inferred layers used as OD start locations (ems_station / hospital_bay / synthetic CSL, see docs/starting_locations.md). Patrol posts are the prescriptive version of the hybrid on-road start: instead of assuming a unit happened to be at a CSL, they say which CSL-like posts to hold.",
+  "pairs_with_inferred_starts": "Candidate posts and home bases are the same inferred layers used as OD start locations (fdny_firehouse / synthetic CSL, see docs/starting_locations.md). Patrol posts are the prescriptive version of the hybrid on-road start: instead of assuming a unit happened to be at a CSL, they say which CSL-like posts to hold.",
   "limits": [
     "Demand destinations are ZIP-centroid level (HIPAA aggregation), so cell centroids are coarse: finer grids do not add resolution until block-level incident geography exists.",
     "Effective surrogate speed is a prior, not fitted: inferred starts sit a median ~0.3 km from the ZIP-centroid destination, so OD-implied speeds (~6 kph) are an artifact of the start inference rather than driving speed.",

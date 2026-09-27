@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from emvro.opendata import DATASETS, download_dataset  # noqa: E402
+from emvro.opendata import DATASETS, download_dataset, download_geojson_dataset  # noqa: E402
 
 
 def main():
@@ -64,6 +64,9 @@ def main():
 
         boxes = download_dataset("alarm_boxes", args.out, limit=args.alarm_box_limit)
         print("Wrote", boxes)
+
+        cos = download_geojson_dataset("fire_companies", args.out)
+        print("Wrote", cos)
 
         if args.legacy_ems:
             for key in ("ems_stations", "hospital_bays"):

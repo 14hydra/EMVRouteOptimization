@@ -36,6 +36,11 @@ DATASETS: dict[str, dict[str, Any]] = {
         "id": "v57i-gtxb",
         "description": "In-Service Alarm Box Locations (intersection proxies for on-road posts / CSLs)",
     },
+    "fire_companies": {
+        "id": "bst7-5464",
+        "description": "FDNY Fire Company first-due boundaries (engine / ladder / squad polygons)",
+        "geojson": True,
+    },
     "modzcta": {
         "id": "pri4-ifjk",
         "description": "Modified Zip Code Tabulation Areas (incident ZIP geometry)",
@@ -103,6 +108,42 @@ def sodaclient_get(
     r = requests.get(url, params=params, timeout=timeout)
     r.raise_for_status()
     return r.json()
+
+
+def download_geojson_dataset(
+    key: str,
+    out_dir: Path | str,
+    *,
+    filename: str | None = None,
+) -> Path:
+    """Download a geospatial Open Data asset as GeoJSON (e.g. fire company polygons)."""
+    if key not in DATASETS:
+        raise KeyError(f"Unknown dataset key {key!r}. Known: {sorted(DATASETS)}")
+    meta = DATASETS[key]
+    dataset_id = meta["id"]
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / (filename or f"{key}.geojson")
+    url = f"https://data.cityofnewyork.us/api/geospatial/{dataset_id}?method=export&format=GeoJSON"
+    r = requests.get(url, timeout=300)
+    r.raise_for_status()
+    out_path.write_bytes(r.content)
+    meta_path = out_dir / f"{key}.meta.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "key": key,
+                "dataset_id": dataset_id,
+                "path": str(out_path),
+                "bytes": out_path.stat().st_size,
+                "description": meta.get("description"),
+                "format": "GeoJSON",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    return out_path
 
 
 def download_dataset(
