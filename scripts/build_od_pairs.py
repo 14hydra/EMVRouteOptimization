@@ -100,8 +100,12 @@ def main():
     p.add_argument(
         "--fallback-mode",
         choices=["static", "csl", "hybrid"],
-        default="hybrid",
-        help="When first_due misses, fall back to this nearest-depot mode",
+        default="static",
+        help=(
+            "When first_due misses, fall back to this nearest-depot mode. Default "
+            "static (nearest firehouse): csl/hybrid pick a synthetic point *because* "
+            "it is close to the destination, which biases trips short."
+        ),
     )
     p.add_argument(
         "--legacy-ems",

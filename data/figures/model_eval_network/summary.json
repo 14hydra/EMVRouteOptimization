@@ -1,0 +1,164 @@
+{
+  "data": "/Users/rickyzhao/Documents/GitHub/EMVRouteOptimization/data/processed/travel_time_network.parquet",
+  "rows": {
+    "train": 406514,
+    "valid": 39010,
+    "refit": 445524,
+    "test": 107232
+  },
+  "split": {
+    "train_end": "2024-12-01",
+    "test_start": "2025-01-01",
+    "test_end": "2025-03-31 23:53:51"
+  },
+  "label": "incident_travel_tm_seconds_qy: first unit assigned \u2192 first unit on scene",
+  "test_metrics": {
+    "0 Predict median": {
+      "n": 107232,
+      "mae_s": 96.65405849000298,
+      "median_ae_s": 72.0,
+      "rmse_s": 145.41243304006727,
+      "r2": -0.0233474032311205,
+      "bias_s": -21.963891375708744,
+      "pct_within_60s": 42.9125634139063,
+      "pct_within_120s": 73.20762458967472,
+      "mae_vs_median_pct": 0.0
+    },
+    "1 Previous design": {
+      "n": 107232,
+      "mae_s": 71.37426508084525,
+      "median_ae_s": 46.717005163886085,
+      "rmse_s": 119.65877454239101,
+      "r2": 0.30703849238767844,
+      "bias_s": -13.194862898027464,
+      "pct_within_60s": 59.90749030140257,
+      "pct_within_120s": 84.40204416592061,
+      "mae_vs_median_pct": 26.154921794383256
+    },
+    "2 + geocoded destinations": {
+      "n": 107232,
+      "mae_s": 69.08689594242216,
+      "median_ae_s": 44.109014318525226,
+      "rmse_s": 117.9238379680659,
+      "r2": 0.3269873608065922,
+      "bias_s": -13.135666265671286,
+      "pct_within_60s": 61.94326320501343,
+      "pct_within_120s": 85.38216204118174,
+      "mae_vs_median_pct": 28.521474398751835
+    },
+    "3 + network origins": {
+      "n": 107232,
+      "mae_s": 67.9996096653189,
+      "median_ae_s": 42.86860698753651,
+      "rmse_s": 117.15461941158685,
+      "r2": 0.3357388627649991,
+      "bias_s": -12.560457375628403,
+      "pct_within_60s": 62.94669501641301,
+      "pct_within_120s": 85.67685019397196,
+      "mae_vs_median_pct": 29.64640002949057
+    },
+    "4 + location priors": {
+      "n": 107232,
+      "mae_s": 67.88585172208603,
+      "median_ae_s": 42.8021812149655,
+      "rmse_s": 117.21471809929612,
+      "r2": 0.3350571745420303,
+      "bias_s": -12.82574750289321,
+      "pct_within_60s": 63.0017159056998,
+      "pct_within_120s": 85.75331990450611,
+      "mae_vs_median_pct": 29.764096011439058
+    },
+    "5 + unit-availability load": {
+      "n": 107232,
+      "mae_s": 67.76492364007633,
+      "median_ae_s": 42.89246072040345,
+      "rmse_s": 117.01763700605194,
+      "r2": 0.3372913221205879,
+      "bias_s": -12.844244777946365,
+      "pct_within_60s": 62.974671739779176,
+      "pct_within_120s": 85.82326171292152,
+      "mae_vs_median_pct": 29.88921034590045
+    },
+    "6 + route street features": {
+      "n": 107232,
+      "mae_s": 67.66475226878451,
+      "median_ae_s": 42.610690841123585,
+      "rmse_s": 117.03499726244279,
+      "r2": 0.3370946740552756,
+      "bias_s": -12.983562165807001,
+      "pct_within_60s": 63.1537227693226,
+      "pct_within_120s": 85.92304535959416,
+      "mae_vs_median_pct": 29.99284941999292
+    },
+    "7 + traffic congestion": {
+      "n": 107232,
+      "mae_s": 67.68456208933526,
+      "median_ae_s": 42.711069569836496,
+      "rmse_s": 117.07887547787003,
+      "r2": 0.3365975141290889,
+      "bias_s": -12.974781704374196,
+      "pct_within_60s": 63.09683676514474,
+      "pct_within_120s": 85.88947329155476,
+      "mae_vs_median_pct": 29.972353828953867
+    }
+  },
+  "chosen": {
+    "1 Previous design": {
+      "objective": "l1",
+      "rounds": 380,
+      "valid_mae_s": 73.45215691953749
+    },
+    "2 + geocoded destinations": {
+      "objective": "l1",
+      "rounds": 713,
+      "valid_mae_s": 70.88563377756894
+    },
+    "3 + network origins": {
+      "objective": "l1",
+      "rounds": 462,
+      "valid_mae_s": 69.35342184129058
+    },
+    "4 + location priors": {
+      "objective": "l1",
+      "rounds": 481,
+      "valid_mae_s": 69.2097580145264
+    },
+    "5 + unit-availability load": {
+      "objective": "l1",
+      "rounds": 503,
+      "valid_mae_s": 69.11664607272917
+    },
+    "6 + route street features": {
+      "objective": "l1",
+      "rounds": 310,
+      "valid_mae_s": 69.0148744978672
+    },
+    "7 + traffic congestion": {
+      "objective": "l1",
+      "rounds": 373,
+      "valid_mae_s": 68.94981272901434
+    }
+  },
+  "top_features_gain": {
+    "prior_dest_key": 334420.0,
+    "call_type": 321458.0,
+    "first_due_engine": 294422.0,
+    "first_due_ladder": 182174.0,
+    "other_units_assigned": 80725.0,
+    "engines_assigned": 80516.0,
+    "minute_of_day": 64682.0,
+    "net_s_nearest1": 33326.0,
+    "ladders_assigned": 32361.0,
+    "net_km_nearest1": 19247.0,
+    "engine_min_since_prev": 15750.0,
+    "ladder_min_since_prev": 14307.0,
+    "hour": 12450.0,
+    "traffic_borough_index": 12053.0,
+    "dispatch_wait_seconds": 11872.0,
+    "wx_temp_c": 11670.0,
+    "prior_n_dest_key": 11564.0,
+    "crow_km_nearest": 10908.0,
+    "traffic_city_speed_mph": 10613.0,
+    "traffic_city_index": 10599.0
+  }
+}
