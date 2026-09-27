@@ -57,6 +57,9 @@ python scripts/build_od_pairs.py --start-mode hybrid
 PYTHONPATH=src python scripts/build_osm_graph.py   # once
 PYTHONPATH=src python scripts/build_travel_time_training_set.py
 PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
+# v2 (recommended): 1 year of CAD, geocoded destinations, network origins
+PYTHONPATH=src python scripts/build_travel_time_network_dataset.py --raw data/raw/big
+PYTHONPATH=src python scripts/train_travel_time_network.py
 
 # Optimal patrol posts / loops (mentor ask)
 PYTHONPATH=src python scripts/build_patrol_routes.py

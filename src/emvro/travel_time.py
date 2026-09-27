@@ -496,12 +496,14 @@ BASELINE_FEATURE_COLUMNS = [
     "osm_route_ok",
 ]
 
+# qc_keep / qc_speed_flag are NOT features: they are computed from the observed
+# travel time (implied speed), so feeding them to the model leaks the label.
+# Use them only to filter or audit rows.
 FIRST_DUE_FEATURE_COLUMNS = [
     "nearest_firehouse_km",
     "first_due_minus_nearest_km",
     "is_first_due",
     "dest_is_alarm_box",
-    "qc_keep",
     "qc_not_nearest_house",
     "first_due_engine",
     "engines_assigned",
@@ -531,7 +533,6 @@ BASELINE_CATEGORICAL = [
 CATEGORICAL_COLUMNS = BASELINE_CATEGORICAL + [
     "start_mode",
     "dest_source",
-    "qc_speed_flag",
 ]
 
 
