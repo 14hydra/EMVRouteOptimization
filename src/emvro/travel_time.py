@@ -3,10 +3,11 @@
 Even without known firetruck GPS origins, we can supervise on the real
 FDNY CAD travel-time label using:
 
-1. Destination features (ZIP centroid, borough, demand)
+1. Destination features (alarm-box point when known, else ZIP centroid)
 2. Temporal / call-type features from CAD
 3. Multi-candidate origin distances (firehouse, CSL; legacy EMS optional)
-4. A primary inferred origin (hybrid rule) for crow-flies / bearing
+4. Primary inferred origin from the first-due / hybrid OD pipeline
+5. First-due QC signals (speed flags, not-nearest house)
 
 This matches the slide plan: segment-aggregated gradient boosting that scores
 routes — here the “route summary” starts with geometry + context features;
@@ -24,7 +25,6 @@ import pandas as pd
 from .depots import (
     _haversine_km,
     _nearest_depot,
-    combine_depot_layers,
     dispatch_area_borough,
     filter_hospital_bays,
     normalize_borough,
@@ -83,6 +83,46 @@ def build_ambulance_depot_layers(
     return layers
 
 
+def _od_feature_frame(od_pairs: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Normalize first-due / hybrid OD columns for a left-merge onto incidents."""
+    if od_pairs is None or not len(od_pairs) or "incident_id" not in od_pairs.columns:
+        return None
+    keep = [
+        c
+        for c in [
+            "incident_id",
+            "start_lat",
+            "start_lon",
+            "dest_lat",
+            "dest_lon",
+            "crow_flies_km",
+            "depot_layer",
+            "start_mode",
+            "start_source",
+            "dest_source",
+            "first_due_engine",
+            "first_due_join",
+            "nearest_firehouse_km",
+            "implied_speed_kph",
+            "qc_speed_flag",
+            "qc_not_nearest_house",
+            "qc_keep",
+        ]
+        if c in od_pairs.columns
+    ]
+    od = od_pairs[keep].drop_duplicates(subset=["incident_id"]).copy()
+    od["incident_id"] = od["incident_id"].astype(str)
+    rename = {
+        "start_lat": "od_start_lat",
+        "start_lon": "od_start_lon",
+        "dest_lat": "od_dest_lat",
+        "dest_lon": "od_dest_lon",
+        "crow_flies_km": "od_crow_flies_km",
+        "depot_layer": "od_depot_layer",
+    }
+    return od.rename(columns={k: v for k, v in rename.items() if k in od.columns})
+
+
 def build_travel_time_feature_table(
     incidents: pd.DataFrame,
     zip_centroids: pd.DataFrame,
@@ -103,12 +143,14 @@ def build_travel_time_feature_table(
 
     Default ``scope='firetrucks'`` uses firehouses + CSLs. Pass ``scope='ambulances'``
     for the legacy EMS station / hospital bay feature set.
+
+    When ``od_pairs`` from the first-due pipeline is provided, destinations prefer
+    alarm-box coordinates and first-due QC columns are attached as features.
     """
     if scope == "ambulances":
         layers = build_ambulance_depot_layers(ems_stations, hospital_bays, csl_points)
     else:
         layers = build_firetruck_depot_layers(firehouses, csl_points)
-        # Optional legacy layers only if explicitly provided alongside fire scope.
         if ems_stations is not None and len(ems_stations):
             layers["ems_station"] = prepare_depots(ems_stations, source_label="ems_station")
         if hospital_bays is not None and len(hospital_bays):
@@ -122,6 +164,7 @@ def build_travel_time_feature_table(
         "incident_response_seconds_qy": "response_seconds",
         "incident_dispatch_area": "dispatch_area",
         "dispatch_response_seconds_qy": "dispatch_wait_seconds",
+        "starfire_incident_id": "incident_id",
     }
     for src, dst in rename.items():
         if src in inc.columns and dst not in inc.columns:
@@ -130,6 +173,15 @@ def build_travel_time_feature_table(
     for col in ("travel_seconds", "response_seconds", "dispatch_wait_seconds"):
         if col in inc.columns:
             inc[col] = pd.to_numeric(inc[col], errors="coerce")
+
+    eng_q = pd.to_numeric(inc.get("engines_assigned_quantity"), errors="coerce")
+    lad_q = pd.to_numeric(inc.get("ladders_assigned_quantity"), errors="coerce")
+    inc["engines_assigned"] = eng_q.fillna(0) if eng_q is not None else np.nan
+    inc["ladders_assigned"] = lad_q.fillna(0) if lad_q is not None else np.nan
+    inc["apparatus_assigned"] = (
+        pd.to_numeric(inc["engines_assigned"], errors="coerce").fillna(0)
+        + pd.to_numeric(inc["ladders_assigned"], errors="coerce").fillna(0)
+    )
 
     inc["zipcode"] = inc["zipcode"].astype(str).str.extract(r"(\d{5})", expand=False)
     inc["borough_norm"] = inc.get("borough", pd.Series(index=inc.index)).map(normalize_borough)
@@ -141,7 +193,6 @@ def build_travel_time_feature_table(
 
     zips = zip_centroids.copy()
     zips["zipcode"] = zips["zipcode"].astype(str).str.extract(r"(\d{5})", expand=False)
-    # ZIP demand as a simple congestion / workload proxy
     zip_volume = (
         inc.dropna(subset=["zipcode"]).groupby("zipcode").size().rename("zip_incident_volume")
     )
@@ -150,40 +201,33 @@ def build_travel_time_feature_table(
 
     inc = inc.merge(zips, on="zipcode", how="left", suffixes=("", "_zip"))
 
-    # Optional: reuse hybrid primary start from od_pairs
-    primary = None
-    if od_pairs is not None and len(od_pairs):
-        keep = [
-            c
-            for c in [
-                "incident_id",
-                "start_lat",
-                "start_lon",
-                "crow_flies_km",
-                "depot_layer",
-                "start_mode",
-                "start_source",
-            ]
-            if c in od_pairs.columns
-        ]
-        primary = od_pairs[keep].drop_duplicates(subset=["incident_id"])
+    od = _od_feature_frame(od_pairs)
+    if od is not None:
+        inc["incident_id"] = inc["incident_id"].astype(str)
+        inc = inc.merge(od, on="incident_id", how="left")
 
     rows: list[dict[str, Any]] = []
     for rec in inc.itertuples(index=False):
         travel = getattr(rec, "travel_seconds", np.nan)
-        dest_lat = getattr(rec, "dest_lat", np.nan)
-        dest_lon = getattr(rec, "dest_lon", np.nan)
-        if travel is None or travel != travel or travel <= 0:
+        if travel is None or travel != travel or travel <= 0 or travel > 3600:
             continue
-        if dest_lat != dest_lat or dest_lon != dest_lon:
-            continue
-        # Drop absurd outliers (> 1 hour travel)
-        if travel > 3600:
+
+        od_dlat = getattr(rec, "od_dest_lat", np.nan)
+        od_dlon = getattr(rec, "od_dest_lon", np.nan)
+        zip_dlat = getattr(rec, "dest_lat", np.nan)
+        zip_dlon = getattr(rec, "dest_lon", np.nan)
+        if od_dlat == od_dlat and od_dlon == od_dlon:
+            dest_lat_f = float(od_dlat)
+            dest_lon_f = float(od_dlon)
+            dest_source = str(getattr(rec, "dest_source", None) or "alarm_box")
+        elif zip_dlat == zip_dlat and zip_dlon == zip_dlon:
+            dest_lat_f = float(zip_dlat)
+            dest_lon_f = float(zip_dlon)
+            dest_source = "zip_centroid"
+        else:
             continue
 
         prefer_b = getattr(rec, "prefer_borough", None)
-        dest_lat_f = float(dest_lat)
-        dest_lon_f = float(dest_lon)
 
         firehouse_km, firehouse = _nearest_km(
             layers.get("fdny_firehouse"), prefer_b, dest_lon_f, dest_lat_f
@@ -206,39 +250,40 @@ def build_travel_time_feature_table(
         farthest_km = max(finite.values())
         spread_km = farthest_km - nearest_km
 
-        # Primary geometry: prefer od_pairs hybrid start if present, else nearest candidate
-        start_lat = np.nan
-        start_lon = np.nan
+        start_lat = getattr(rec, "od_start_lat", np.nan)
+        start_lon = getattr(rec, "od_start_lon", np.nan)
+        od_layer = getattr(rec, "od_depot_layer", None)
+        od_crow = getattr(rec, "od_crow_flies_km", np.nan)
         primary_layer = nearest_layer
         crow = nearest_km
         allowed_layers = {"fdny_firehouse", "csl", "ems_station", "hospital_bay"}
-        if primary is not None:
-            iid = getattr(rec, "incident_id", None)
-            hit = primary[primary["incident_id"].astype(str) == str(iid)]
-            if len(hit):
-                layer = str(hit.iloc[0].get("depot_layer") or "")
-                if layer in allowed_layers:
-                    start_lat = float(hit.iloc[0]["start_lat"])
-                    start_lon = float(hit.iloc[0]["start_lon"])
-                    primary_layer = layer
-                    crow = float(hit.iloc[0].get("crow_flies_km") or nearest_km)
-
-        if start_lat != start_lat:
+        if (
+            start_lat == start_lat
+            and start_lon == start_lon
+            and str(od_layer or "") in allowed_layers
+        ):
+            start_lat = float(start_lat)
+            start_lon = float(start_lon)
+            primary_layer = str(od_layer)
+            crow = (
+                float(od_crow)
+                if od_crow == od_crow
+                else float(_haversine_km(start_lon, start_lat, dest_lon_f, dest_lat_f))
+            )
+        else:
             chosen = {
                 "fdny_firehouse": firehouse,
                 "ems_station": station,
                 "hospital_bay": hospital,
                 "csl": csl,
             }.get(nearest_layer)
-            if chosen is not None:
-                start_lat = float(chosen["start_lat"])
-                start_lon = float(chosen["start_lon"])
+            if chosen is None:
+                continue
+            start_lat = float(chosen["start_lat"])
+            start_lon = float(chosen["start_lon"])
+            crow = nearest_km
 
-        bearing = (
-            _bearing_deg(start_lat, start_lon, dest_lat_f, dest_lon_f)
-            if start_lat == start_lat
-            else np.nan
-        )
+        bearing = _bearing_deg(start_lat, start_lon, dest_lat_f, dest_lon_f)
 
         dt = pd.to_datetime(getattr(rec, "incident_datetime", None), errors="coerce")
         hour = int(dt.hour) if pd.notna(dt) else -1
@@ -255,6 +300,29 @@ def build_travel_time_feature_table(
         held = str(getattr(rec, "held_indicator", "N") or "N").upper()
         valid = str(getattr(rec, "valid_incident_rspns_time_indc", "Y") or "Y").upper()
 
+        start_mode = str(getattr(rec, "start_mode", "") or "unknown")
+        is_first_due = int(start_mode == "first_due")
+        qc_keep = getattr(rec, "qc_keep", np.nan)
+        if isinstance(qc_keep, (bool, np.bool_)):
+            qc_keep_i = int(qc_keep)
+        else:
+            s = str(qc_keep).lower()
+            qc_keep_i = 1 if s in {"true", "1", "yes"} else (0 if s in {"false", "0", "no"} else -1)
+        qc_not_nearest = getattr(rec, "qc_not_nearest_house", np.nan)
+        if isinstance(qc_not_nearest, (bool, np.bool_)):
+            qc_not_nearest_i = int(qc_not_nearest)
+        else:
+            s = str(qc_not_nearest).lower()
+            qc_not_nearest_i = (
+                1 if s in {"true", "1", "yes"} else (0 if s in {"false", "0", "no"} else -1)
+            )
+        nearest_fh = pd.to_numeric(getattr(rec, "nearest_firehouse_km", np.nan), errors="coerce")
+        first_due_minus_nearest = (
+            float(crow) - float(nearest_fh)
+            if nearest_fh == nearest_fh and crow == crow
+            else np.nan
+        )
+
         rows.append(
             {
                 "incident_id": getattr(rec, "incident_id", None),
@@ -267,17 +335,32 @@ def build_travel_time_feature_table(
                 "zipcode": getattr(rec, "zipcode", None),
                 "dest_lat": dest_lat_f,
                 "dest_lon": dest_lon_f,
+                "dest_source": dest_source,
                 "start_lat": start_lat,
                 "start_lon": start_lon,
                 "primary_origin_layer": primary_layer,
+                "start_mode": start_mode,
                 "crow_flies_km": crow,
                 "bearing_deg": bearing,
                 "firehouse_km": firehouse_km,
-                "station_km": station_km,  # legacy EMS; NaN under firetruck scope
-                "hospital_km": hospital_km,  # legacy EMS; NaN under firetruck scope
+                "station_km": station_km,
+                "hospital_km": hospital_km,
                 "csl_km": csl_km,
                 "nearest_origin_km": nearest_km,
                 "origin_spread_km": spread_km,
+                "nearest_firehouse_km": float(nearest_fh) if nearest_fh == nearest_fh else firehouse_km,
+                "first_due_minus_nearest_km": first_due_minus_nearest,
+                "is_first_due": is_first_due,
+                "dest_is_alarm_box": int(dest_source == "alarm_box"),
+                "qc_keep": qc_keep_i,
+                "qc_not_nearest_house": qc_not_nearest_i,
+                "qc_speed_flag": str(getattr(rec, "qc_speed_flag", "") or "unknown"),
+                "first_due_engine": pd.to_numeric(
+                    getattr(rec, "first_due_engine", np.nan), errors="coerce"
+                ),
+                "engines_assigned": float(getattr(rec, "engines_assigned", np.nan)),
+                "ladders_assigned": float(getattr(rec, "ladders_assigned", np.nan)),
+                "apparatus_assigned": float(getattr(rec, "apparatus_assigned", np.nan)),
                 "zip_incident_volume": float(getattr(rec, "zip_incident_volume", 0) or 0),
                 "hour": hour,
                 "dow": dow,
@@ -290,7 +373,6 @@ def build_travel_time_feature_table(
                 "final_call_type": str(getattr(rec, "final_call_type", "") or ""),
                 "held_indicator": 1 if held == "Y" else 0,
                 "valid_travel": 1 if valid == "Y" else 0,
-                # Ambiguity: quarters vs on-road post. High = origin uncertain.
                 "firehouse_minus_csl_km": (
                     firehouse_km - csl_km
                     if firehouse_km == firehouse_km and csl_km == csl_km
@@ -305,7 +387,8 @@ def build_travel_time_feature_table(
     return pd.DataFrame(rows)
 
 
-FEATURE_COLUMNS = [
+# Baseline CAD model (pre–first-due): geometry + weather + OSM only.
+BASELINE_FEATURE_COLUMNS = [
     "crow_flies_km",
     "bearing_deg",
     "firehouse_km",
@@ -313,7 +396,6 @@ FEATURE_COLUMNS = [
     "nearest_origin_km",
     "origin_spread_km",
     "firehouse_minus_csl_km",
-    # Legacy EMS columns kept for optional scope='ambulances' retrain only
     "station_km",
     "hospital_km",
     "station_minus_csl_km",
@@ -329,7 +411,6 @@ FEATURE_COLUMNS = [
     "held_indicator",
     "dest_lat",
     "dest_lon",
-    # Weather (Open-Meteo)
     "wx_temp_c",
     "wx_humidity",
     "wx_precip_mm",
@@ -340,7 +421,6 @@ FEATURE_COLUMNS = [
     "wx_visibility_m",
     "wx_is_precip",
     "wx_is_snow",
-    # OSM path aggregates (LION swap-in later)
     "osm_path_km",
     "osm_n_edges",
     "gmaps_duration_s",
@@ -358,27 +438,57 @@ FEATURE_COLUMNS = [
     "osm_route_ok",
 ]
 
-# Route-scoring feature set: no CAD dispatch wait (system load ≠ street physics)
+FIRST_DUE_FEATURE_COLUMNS = [
+    "nearest_firehouse_km",
+    "first_due_minus_nearest_km",
+    "is_first_due",
+    "dest_is_alarm_box",
+    "qc_keep",
+    "qc_not_nearest_house",
+    "first_due_engine",
+    "engines_assigned",
+    "ladders_assigned",
+    "apparatus_assigned",
+]
+
+FEATURE_COLUMNS = BASELINE_FEATURE_COLUMNS + FIRST_DUE_FEATURE_COLUMNS
+
 ROUTE_ONLY_DROP = {
     "dispatch_wait_seconds",
     "held_indicator",
 }
 
-CATEGORICAL_COLUMNS = [
+BASELINE_CATEGORICAL = [
     "borough",
     "primary_origin_layer",
     "initial_call_type",
     "final_call_type",
 ]
 
+CATEGORICAL_COLUMNS = BASELINE_CATEGORICAL + [
+    "start_mode",
+    "dest_source",
+    "qc_speed_flag",
+]
+
 
 def feature_list(feature_set: str = "full") -> list[str]:
-    """Return numeric feature columns for ``full`` or ``route`` models."""
-    if feature_set == "full":
+    """Return numeric feature columns for a named feature set."""
+    if feature_set in {"full", "improved"}:
         return list(FEATURE_COLUMNS)
+    if feature_set == "baseline":
+        return list(BASELINE_FEATURE_COLUMNS)
     if feature_set == "route":
         return [c for c in FEATURE_COLUMNS if c not in ROUTE_ONLY_DROP]
-    raise ValueError(f"Unknown feature_set={feature_set!r}; use 'full' or 'route'")
+    raise ValueError(
+        f"Unknown feature_set={feature_set!r}; use 'baseline', 'full', 'improved', or 'route'"
+    )
+
+
+def categorical_list(feature_set: str = "full") -> list[str]:
+    if feature_set == "baseline":
+        return list(BASELINE_CATEGORICAL)
+    return list(CATEGORICAL_COLUMNS)
 
 
 def prepare_matrix(df: pd.DataFrame, feature_set: str = "full"):
@@ -386,11 +496,12 @@ def prepare_matrix(df: pd.DataFrame, feature_set: str = "full"):
     data = df.copy()
     data = data[data["valid_travel"] == 1] if "valid_travel" in data.columns else data
     y = data["travel_seconds"].astype(float)
-    feats = feature_list(feature_set) + CATEGORICAL_COLUMNS
+    cats = categorical_list(feature_set)
+    feats = feature_list(feature_set) + cats
     missing = [c for c in feats if c not in data.columns]
     for c in missing:
         data[c] = np.nan
     X = data[feats].copy()
-    for c in CATEGORICAL_COLUMNS:
+    for c in cats:
         X[c] = X[c].astype("category")
-    return X, y, CATEGORICAL_COLUMNS
+    return X, y, cats

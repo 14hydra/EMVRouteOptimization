@@ -1,0 +1,51 @@
+{
+  "old": {
+    "feature_set": "baseline",
+    "n_features": 51,
+    "n_test": 674,
+    "mae_seconds": 96.81376618137476,
+    "rmse_seconds": 132.55643387037713,
+    "r2": 0.06383223380266845,
+    "median_abs_error_seconds": 76.12009184884243,
+    "baseline_mae_predict_median": 99.91543026706232,
+    "mae_improvement_vs_median_pct": 3.1042893749215428,
+    "pct_within_3_min": 87.3887240356083,
+    "pct_within_5_min": 96.73590504451039,
+    "pct_within_10_min": 99.25816023738872,
+    "bias_seconds": 0.4285411773181111,
+    "n_train": 2692
+  },
+  "new": {
+    "feature_set": "full",
+    "n_features": 64,
+    "n_test": 674,
+    "mae_seconds": 84.08393655311673,
+    "rmse_seconds": 119.2126862382741,
+    "r2": 0.24282370661471597,
+    "median_abs_error_seconds": 61.776355228987285,
+    "baseline_mae_predict_median": 99.91543026706232,
+    "mae_improvement_vs_median_pct": 15.844893698230445,
+    "pct_within_3_min": 89.76261127596439,
+    "pct_within_5_min": 97.62611275964392,
+    "pct_within_10_min": 99.70326409495549,
+    "bias_seconds": -4.488326852895082,
+    "n_train": 2692
+  },
+  "delta": {
+    "mae_seconds": -12.729829628258031,
+    "rmse_seconds": -13.343747632103032,
+    "r2": 0.17899147281204753,
+    "pct_within_5_min": 0.8902077151335277,
+    "median_abs_error_seconds": -14.34373661985515
+  },
+  "figures": [
+    "01_metrics_bars.png",
+    "02_pred_vs_actual_pair.png",
+    "03_error_cdf_overlay.png",
+    "04_mae_by_borough.png",
+    "05_mae_by_distance.png",
+    "06_delta_summary.png",
+    "07_new_feature_importance.png"
+  ],
+  "note": "Old = baseline CAD features + prior LightGBM hyperparams. New = first-due OD geometry/QC features + stronger LightGBM. Same rows and holdout seed."
+}

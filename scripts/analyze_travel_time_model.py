@@ -215,9 +215,9 @@ def main():
     )
     p.add_argument(
         "--feature-set",
-        choices=("full", "route", "route_eta"),
-        default="route_eta",
-        help="route_eta = known-OD optimizer model (default); full/route = CAD context models",
+        choices=("baseline", "full", "route", "route_eta"),
+        default="full",
+        help="baseline/full/route = CAD models; route_eta = known-OD optimizer model",
     )
     p.add_argument(
         "--importance",
