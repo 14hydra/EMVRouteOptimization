@@ -64,6 +64,8 @@ class StreetGraph:
                         float(d.get("length") or 0), float(d.get("bearing", np.nan))))
         e = pd.DataFrame(rec, columns=["ui", "vi", "u", "v", "key", "t", "len", "bearing"])
         e = e.sort_values("t").drop_duplicates(["ui", "vi"]).reset_index(drop=True)
+        if isinstance(edge_table, dict) and "table" in edge_table:
+            edge_table = edge_table["table"]
         attrs = edge_table.reindex(pd.MultiIndex.from_frame(e[["u", "v", "key"]]))
         self.attr = {c: attrs[c].to_numpy(float) for c in _MEAN_COLS + list(_SHARE_COLS) + ["lion_matched"]}
         self.len = e["len"].to_numpy()

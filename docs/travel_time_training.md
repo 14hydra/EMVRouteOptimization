@@ -85,6 +85,31 @@ Street features and traffic add little (about 0.1 s each, ~5% of model gain):
 two incidents at the same box, hour block and call type still differ by ~75 s,
 so most remaining error is not about the road.
 
+## Hybrid (network features + residual bag4 + HGB)
+
+Merges the network-origin table with the residual LightGBM seed bag +
+HistGradientBoosting blend used on the smaller CAD training set.
+
+```bash
+# On the 60k extract in data/raw (or --raw data/raw/big for the year table):
+PYTHONPATH=src python scripts/build_travel_time_network_dataset.py --raw data/raw
+PYTHONPATH=src python scripts/train_travel_time_hybrid.py
+```
+
+Chronological holdout on the Dec-2024 60k extract (~40k usable rows):
+
+| Model | MAE | R² |
+|---|---|---|
+| Median | 92.3 s | ~0 |
+| Single residual LGBM | 68.6 s | 0.37 |
+| Bag4 | 68.4 s | 0.37 |
+| **Bag4 + HGB (hybrid)** | **68.0 s** | **0.38** |
+
+Artifacts: `data/processed/models/travel_time_hybrid.joblib`,
+`data/figures/model_eval_hybrid/`. For a year-scale time split, build
+`data/raw/big` as above and point `--data` at that parquet.
+
+
 The ceiling is the label: the first-arriving unit is often not at its house
 (returning, relocated, already out), and turnout time varies. Unit AVL/GPS
 would be needed to go much further.

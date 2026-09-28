@@ -216,7 +216,9 @@ def main():
 
         from emvro.route_street_features import StreetGraph, route_street_features
 
-        sg = StreetGraph(args.rich_graph, pickle.loads(args.edge_table.read_bytes()))
+        raw_edges = pickle.loads(args.edge_table.read_bytes())
+        edge_table = raw_edges["table"] if isinstance(raw_edges, dict) and "table" in raw_edges else raw_edges
+        sg = StreetGraph(args.rich_graph, edge_table)
         rt = route_street_features(dests, houses, company_to_house(houses, "E"), sg)
         dests = pd.concat([dests, rt], axis=1)
         net = pd.concat([net, rt], axis=1)
