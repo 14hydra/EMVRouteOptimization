@@ -206,7 +206,10 @@ def main():
     p.add_argument("--data", type=Path, default=ROOT / "data" / "processed" / "travel_time_network.parquet")
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "processed" / "models")
     p.add_argument("--figures", type=Path, default=ROOT / "data" / "figures" / "model_eval_hybrid")
-    p.add_argument("--test-frac", type=float, default=0.2)
+    p.add_argument("--test-frac", type=float, default=0.2, help="Used only when --train-end/--test-start unset")
+    p.add_argument("--train-end", type=str, default=None, help="ISO cutoff; rows before this are train/valid")
+    p.add_argument("--test-start", type=str, default=None, help="ISO; rows on/after this are test")
+    p.add_argument("--valid-start", type=str, default=None, help="ISO; default = 1 month before test-start")
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
 
@@ -215,12 +218,30 @@ def main():
     d = d[d["travel_seconds"].between(45, 1200)].reset_index(drop=True)
     d["dest_key"] = d["dest_lat"].round(5).astype(str) + "," + d["dest_lon"].round(5).astype(str)
     d["incident_datetime"] = pd.to_datetime(d["incident_datetime"], errors="coerce")
+    d = d.sort_values("incident_datetime").reset_index(drop=True)
 
-    train, test = chronological_split(d, test_frac=args.test_frac)
-    # tiny valid slice from end of train for early stopping
-    val_n = max(500, int(0.1 * len(train)))
-    valid = train.iloc[-val_n:].reset_index(drop=True)
-    train_fit = train.iloc[:-val_n].reset_index(drop=True)
+    if args.train_end and args.test_start:
+        train_end = pd.Timestamp(args.train_end)
+        test_start = pd.Timestamp(args.test_start)
+        valid_start = pd.Timestamp(args.valid_start) if args.valid_start else (test_start - pd.DateOffset(months=1))
+        train_fit = d[d["incident_datetime"] < valid_start].reset_index(drop=True)
+        valid = d[(d["incident_datetime"] >= valid_start) & (d["incident_datetime"] < test_start)].reset_index(drop=True)
+        test = d[d["incident_datetime"] >= test_start].reset_index(drop=True)
+        if len(valid) < 500:
+            # fall back: last 10% of pre-test as valid
+            pre = d[d["incident_datetime"] < test_start].reset_index(drop=True)
+            val_n = max(500, int(0.1 * len(pre)))
+            train_fit = pre.iloc[:-val_n].reset_index(drop=True)
+            valid = pre.iloc[-val_n:].reset_index(drop=True)
+        print(
+            f"time split: train_fit {len(train_fit):,} | valid {len(valid):,} | "
+            f"test {len(test):,} (from {args.test_start})"
+        )
+    else:
+        train, test = chronological_split(d, test_frac=args.test_frac)
+        val_n = max(500, int(0.1 * len(train)))
+        valid = train.iloc[-val_n:].reset_index(drop=True)
+        train_fit = train.iloc[:-val_n].reset_index(drop=True)
 
     train_p, (valid_p, test_p) = add_priors(train_fit, [valid, test], PRIOR_KEYS)
     # Rebuild priors on full train (fit+valid) for final bag, apply to test

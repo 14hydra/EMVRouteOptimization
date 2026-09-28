@@ -195,7 +195,7 @@ def download_dataset(
     if key in incident_keys:
         order = f"{dt_col} ASC" if (start and end) else f"{dt_col} DESC"
 
-    pbar = tqdm(total=min(target, 50_000) if limit else None, desc=f"download:{key}", unit="row")
+    pbar = tqdm(total=target if limit else None, desc=f"download:{key}", unit="row")
     while len(rows) < target:
         batch_n = min(page_size, target - len(rows))
         batch = sodaclient_get(
