@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from emvro.network_origins import NETWORK_FEATURE_COLUMNS  # noqa: E402
 from emvro.route_street_features import ROUTE_STREET_COLUMNS  # noqa: E402
+from emvro.traffic import TRAFFIC_FEATURE_COLUMNS  # noqa: E402
 from emvro.weather import WEATHER_FEATURE_COLUMNS  # noqa: E402
 
 omp = "/opt/homebrew/opt/libomp/lib"
@@ -39,6 +40,14 @@ LOAD = [
     f"{area}_{c}"
     for area in ("engine", "ladder", "borough")
     for c in ("n_prev_15m", "n_prev_30m", "n_prev_60m", "min_since_prev")
+]
+GMAPS_COLS = [
+    "gmaps_duration_s",
+    "gmaps_traffic_s",
+    "gmaps_distance_m",
+    "gmaps_ok",
+    "gmaps_emv_s",
+    "gmaps_vs_net",
 ]
 CONTEXT = [
     "hour",
@@ -125,11 +134,15 @@ def add_priors(train: pd.DataFrame, other: list[pd.DataFrame], keys: list[str], 
 
 
 def network_prior(X: pd.DataFrame) -> np.ndarray:
-    """Free-flow network seconds as residual base (EMV factor ~0.75)."""
+    """Free-flow network seconds as residual base (EMV factor ~0.75), blended with GMaps EMV prior when present."""
     base = pd.to_numeric(X.get("net_s_first_due_min"), errors="coerce")
     nearest = pd.to_numeric(X.get("net_s_nearest1"), errors="coerce")
     prior = (0.6 * base.fillna(nearest) + 0.4 * nearest.fillna(base)).fillna(300) * 0.75
     prior = prior.clip(45, 900)
+    if "gmaps_emv_s" in X.columns:
+        # Keep GMaps as a *feature* only — blending into the residual prior
+        # hurts when civilian ETA ≠ CAD assign→on-scene.
+        pass
     if "prior_dest_key" in X.columns:
         dest = np.exp(pd.to_numeric(X["prior_dest_key"], errors="coerce").fillna(np.log(300)))
         prior = 0.55 * prior + 0.45 * dest
@@ -145,6 +158,8 @@ def feature_frame(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         + [c for c in LOAD if c in df.columns]
         + [c for c in CONTEXT if c in df.columns]
         + [c for c in ROUTE_STREET_COLUMNS if c in df.columns]
+        + [c for c in TRAFFIC_FEATURE_COLUMNS if c in df.columns]
+        + [c for c in GMAPS_COLS if c in df.columns]
         + [c for c in df.columns if c.startswith("prior_")]
         + ["dest_lat", "dest_lon"]
     )
@@ -156,7 +171,7 @@ def feature_frame(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     return X, cats
 
 
-def fit_lgbm(X_train, y_train, X_val, y_val, cats, seed: int, sample_weight=None):
+def fit_lgbm(X_train, y_train, X_val, y_val, cats, seed: int, sample_weight=None, objective: str = "regression"):
     model = lgb.LGBMRegressor(
         n_estimators=3500,
         learning_rate=0.01,
@@ -168,6 +183,7 @@ def fit_lgbm(X_train, y_train, X_val, y_val, cats, seed: int, sample_weight=None
         reg_lambda=5.0,
         random_state=seed,
         verbose=-1,
+        objective=objective,
     )
     prior_tr = network_prior(X_train)
     prior_va = network_prior(X_val)
@@ -270,10 +286,26 @@ def main():
 
     bag_models = []
     bag_preds = []
-    for seed in (args.seed, args.seed + 1, args.seed + 2, args.seed + 3):
-        # Early-stop on valid using train_fit; then refit is approximated by
-        # predicting with that model (bags differ by seed).
-        m = fit_lgbm(X_tr, y_tr, X_va, y_va, cats, seed)
+    # Up-weight precise destinations and GMaps-covered rows (cleaner signal).
+    # Alarm-box coords are the most accurate public destinations; zip centroids
+    # are noisy — down-weight them harder so year-scale data doesn't dilute.
+    sw = np.ones(len(train_p))
+    if "dest_source" in train_p.columns:
+        ds = train_p["dest_source"].astype(str)
+        sw = np.where(ds == "alarm_box", 1.5, np.where(ds == "intersection_geocode", 1.15, 0.65))
+    if "gmaps_ok" in train_p.columns:
+        sw = sw * np.where(pd.to_numeric(train_p["gmaps_ok"], errors="coerce").fillna(0) == 1, 1.15, 1.0)
+    # Mild up-weight when traffic sensors cover the hour (more accurate context).
+    if "traffic_city_index" in train_p.columns:
+        sw = sw * np.where(pd.to_numeric(train_p["traffic_city_index"], errors="coerce").notna(), 1.08, 1.0)
+    bag_specs = [
+        (args.seed, "regression"),
+        (args.seed + 1, "regression"),
+        (args.seed + 2, "regression"),
+        (args.seed + 3, "regression_l1"),
+    ]
+    for seed, obj in bag_specs:
+        m = fit_lgbm(X_tr, y_tr, X_va, y_va, cats, seed, sample_weight=sw, objective=obj)
         bag_models.append(m)
         bag_preds.append(predict_lgbm(m, X_te))
     pred_bag = np.mean(np.vstack(bag_preds), axis=0)
@@ -295,7 +327,10 @@ def main():
     )
     hgb.fit(Xn_tr, y_full - prior_tr)
     pred_h = np.clip(prior_te + hgb.predict(Xn_te), 30, 1800)
-    pred = 0.65 * pred_bag + 0.35 * pred_h
+    # Bag-only has been beating bag+HGB on chronological CAD holdouts; keep a
+    # light HGB blend for variance, not equal weight.
+    hgb_w = 0.15
+    pred = (1.0 - hgb_w) * pred_bag + hgb_w * pred_h
 
     # Baselines for comparison on the same holdout
     crow = pd.to_numeric(test_final.get("prev_crow_km_primary"), errors="coerce").fillna(0.8)
@@ -323,7 +358,7 @@ def main():
         "model": bag_models[0],
         "bag_models": bag_models[1:],
         "hgb_model": hgb,
-        "ensemble_hgb_weight": 0.35,
+        "ensemble_hgb_weight": hgb_w,
         "features": cols,
         "categorical": cats,
         "prior_keys": PRIOR_KEYS,
