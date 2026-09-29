@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Side-by-side comparison for data/figures/model_eval_comparison/:
+Compare travel-time *model types* for data/figures/model_eval_comparison/:
 
-  Old  = previous CAD design (crow-flies from guessed house + context LGBM)
-  New  = hybrid (network origins + OOF priors + residual bag4 + HGB)
+  - Crow + context LGBM
+  - Network + traffic LGBM
+  - Hybrid bag4 / bag4+HGB (network features + residual priors)
 
 Same chronological holdout on travel_time_network.parquet.
 """
@@ -97,12 +98,12 @@ def plot_metrics_bars(old_m, new_m, out: Path):
     ]
     x = np.arange(len(labels))
     fig, ax = plt.subplots(figsize=(9.5, 5.0))
-    ax.bar(x - 0.18, old_v, width=0.36, color="#7f8c8d", label="Old (CAD crow + LGBM)")
-    ax.bar(x + 0.18, new_v, width=0.36, color="#c0392b", label="New (network hybrid)")
+    ax.bar(x - 0.18, old_v, width=0.36, color="#7f8c8d", label="Crow + context LGBM")
+    ax.bar(x + 0.18, new_v, width=0.36, color="#c0392b", label="Hybrid bag4+HGB")
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_ylabel("Score")
-    ax.set_title("Holdout metrics — old CAD vs network hybrid")
+    ax.set_title("Holdout metrics by model type")
     ax.legend()
     for i, (a, b) in enumerate(zip(old_v, new_v)):
         ax.text(i - 0.18, a + 0.05, f"{a:.2f}", ha="center", va="bottom", fontsize=8)
@@ -119,8 +120,8 @@ def plot_pred_vs_actual_pair(old_df, new_df, out: Path):
         new_df["y_pred"].max(),
     ) / 60
     for ax, df, title, color in [
-        (axes[0], old_df, "Old CAD model", "#7f8c8d"),
-        (axes[1], new_df, "Network hybrid", "#c0392b"),
+        (axes[0], old_df, "Crow + context LGBM", "#7f8c8d"),
+        (axes[1], new_df, "Hybrid bag4+HGB", "#c0392b"),
     ]:
         ax.scatter(df["y_true"] / 60, df["y_pred"] / 60, s=16, alpha=0.35, c=color, edgecolors="none")
         ax.plot([0, lim], [0, lim], color="#222", lw=1.2)
@@ -131,13 +132,16 @@ def plot_pred_vs_actual_pair(old_df, new_df, out: Path):
         ax.set_xlim(0, lim)
         ax.set_ylim(0, lim)
     axes[0].set_ylabel("Predicted (min)")
-    fig.suptitle("Predicted vs actual (same chronological holdout)", fontsize=13, fontweight="bold")
+    fig.suptitle("Predicted vs actual by model type (same holdout)", fontsize=13, fontweight="bold")
     _save(fig, out)
 
 
 def plot_error_cdf_overlay(old_df, new_df, out: Path):
     fig, ax = plt.subplots(figsize=(7.8, 5.0))
-    for df, label, color in [(old_df, "Old CAD", "#7f8c8d"), (new_df, "Network hybrid", "#c0392b")]:
+    for df, label, color in [
+        (old_df, "Crow + context LGBM", "#7f8c8d"),
+        (new_df, "Hybrid bag4+HGB", "#c0392b"),
+    ]:
         errs = np.sort(df["abs_error"].values) / 60
         cdf = np.arange(1, len(errs) + 1) / len(errs)
         ax.plot(errs, cdf, color=color, lw=2.2, label=label)
@@ -145,7 +149,7 @@ def plot_error_cdf_overlay(old_df, new_df, out: Path):
     ax.axvline(5, color="#555", ls="--", lw=1, label="5 min")
     ax.set_xlabel("|Error| (minutes)")
     ax.set_ylabel("Fraction of holdout ≤ error")
-    ax.set_title("Absolute error CDF — old vs hybrid")
+    ax.set_title("Absolute error CDF by model type")
     ax.set_xlim(left=0)
     ax.set_ylim(0, 1.02)
     ax.legend()
@@ -154,7 +158,7 @@ def plot_error_cdf_overlay(old_df, new_df, out: Path):
 
 def plot_mae_by_borough(old_df, new_df, out: Path):
     rows = []
-    for label, df in [("Old CAD", old_df), ("Hybrid", new_df)]:
+    for label, df in [("Crow + context LGBM", old_df), ("Hybrid bag4+HGB", new_df)]:
         g = df.groupby("borough", dropna=False)["abs_error"].mean().reset_index()
         g["model"] = label
         g["mae_min"] = g["abs_error"] / 60
@@ -164,7 +168,7 @@ def plot_mae_by_borough(old_df, new_df, out: Path):
     sns.barplot(data=plot_df, x="borough", y="mae_min", hue="model", ax=ax, palette=["#7f8c8d", "#c0392b"])
     ax.set_ylabel("MAE (minutes)")
     ax.set_xlabel("")
-    ax.set_title("MAE by borough — old vs hybrid")
+    ax.set_title("MAE by borough · model types")
     ax.tick_params(axis="x", rotation=20)
     _save(fig, out)
 
@@ -185,7 +189,7 @@ def plot_delta_summary(old_m, new_m, out: Path):
     colors = ["#2c7a7b" if g else "#c0392b" for g in good]
     ax.barh(names, vals, color=colors)
     ax.axvline(0, color="#222", lw=1)
-    ax.set_title("Hybrid − old CAD (green = improved)")
+    ax.set_title("Hybrid bag4+HGB − crow LGBM (green = better)")
     ax.set_xlabel("Delta")
     for i, v in enumerate(vals):
         ax.text(v, i, f" {v:+.3f}", va="center", fontsize=9)
@@ -193,19 +197,19 @@ def plot_delta_summary(old_m, new_m, out: Path):
 
 
 def plot_three_way_mae(base_m, cad_m, hyb_m, out: Path):
-    labels = ["Old CAD\n(crow LGBM)", "CAD bag4+HGB\n(first-due/OSM)", "Network hybrid\n(bag4+HGB)"]
+    labels = ["Crow + context\nLGBM", "Network +\ntraffic", "Hybrid\nbag4+HGB"]
     maes = [base_m["mae_seconds"] / 60, cad_m["mae_seconds"] / 60, hyb_m["mae_seconds"] / 60]
     r2s = [base_m["r2"], cad_m["r2"], hyb_m["r2"]]
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.6))
     colors = ["#7f8c8d", "#2980b9", "#c0392b"]
     axes[0].bar(labels, maes, color=colors)
     axes[0].set_ylabel("MAE (min)")
-    axes[0].set_title("MAE (same chronological holdout)")
+    axes[0].set_title("MAE by model type")
     for i, v in enumerate(maes):
         axes[0].text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9)
     axes[1].bar(labels, r2s, color=colors)
     axes[1].set_ylabel("R²")
-    axes[1].set_title("R² (same chronological holdout)")
+    axes[1].set_title("R² by model type")
     for i, v in enumerate(r2s):
         axes[1].text(i, v + 0.01, f"{v:.3f}", ha="center", fontsize=9)
     _save(fig, out)
@@ -448,9 +452,8 @@ def main():
         "three_way": three,
         "figures": sorted(p.name for p in args.out_dir.glob("*.png")),
         "note": (
-            "Old = previous CAD crow-flies origin + context LightGBM. "
-            "New = network origins + OOF location priors + residual 4-seed bag + HGB. "
-            "Same chronological holdout on travel_time_network.parquet."
+            "Model types on the same chronological holdout: crow + context LGBM, "
+            "network + traffic LGBM, and hybrid bag4(+HGB) with network features + residual priors."
         ),
     }
     (args.out_dir / "comparison_summary.json").write_text(json.dumps(comparison, indent=2) + "\n")

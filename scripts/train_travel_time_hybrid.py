@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Hybrid CAD travel-time trainer: Ricky's network / load / prior features
+Hybrid CAD travel-time trainer: network / load / prior features
 + residual geometry prior + 4-seed LightGBM bag + HistGradientBoosting.
 
 Uses ``travel_time_network.parquet``. Prefer a chronological holdout when the
@@ -227,6 +227,18 @@ def main():
     p.add_argument("--test-start", type=str, default=None, help="ISO; rows on/after this are test")
     p.add_argument("--valid-start", type=str, default=None, help="ISO; default = 1 month before test-start")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--train-dest-sources",
+        type=str,
+        default="alarm_box,intersection_geocode",
+        help="Comma-separated dest_source values kept in train/valid (zip_centroid dropped by default)",
+    )
+    p.add_argument(
+        "--test-dest-sources",
+        type=str,
+        default=None,
+        help="Optional dest filter on test; default = all sources (same holdout as network types)",
+    )
     args = p.parse_args()
 
     d = pd.read_parquet(args.data)
@@ -236,6 +248,13 @@ def main():
     d["incident_datetime"] = pd.to_datetime(d["incident_datetime"], errors="coerce")
     d = d.sort_values("incident_datetime").reset_index(drop=True)
 
+    train_dest = {s.strip() for s in args.train_dest_sources.split(",") if s.strip()}
+    test_dest = (
+        {s.strip() for s in args.test_dest_sources.split(",") if s.strip()}
+        if args.test_dest_sources
+        else None
+    )
+
     if args.train_end and args.test_start:
         train_end = pd.Timestamp(args.train_end)
         test_start = pd.Timestamp(args.test_start)
@@ -243,9 +262,19 @@ def main():
         train_fit = d[d["incident_datetime"] < valid_start].reset_index(drop=True)
         valid = d[(d["incident_datetime"] >= valid_start) & (d["incident_datetime"] < test_start)].reset_index(drop=True)
         test = d[d["incident_datetime"] >= test_start].reset_index(drop=True)
+        if "dest_source" in train_fit.columns and train_dest:
+            before = len(train_fit)
+            train_fit = train_fit[train_fit["dest_source"].astype(str).isin(train_dest)].reset_index(drop=True)
+            valid = valid[valid["dest_source"].astype(str).isin(train_dest)].reset_index(drop=True)
+            print(f"train dest filter {sorted(train_dest)}: {before:,} → {len(train_fit):,} (+valid {len(valid):,})")
+        if "dest_source" in test.columns and test_dest:
+            test = test[test["dest_source"].astype(str).isin(test_dest)].reset_index(drop=True)
+            print(f"test dest filter {sorted(test_dest)}: {len(test):,} rows")
         if len(valid) < 500:
-            # fall back: last 10% of pre-test as valid
+            # fall back: last 10% of pre-test as valid (still respect dest filter)
             pre = d[d["incident_datetime"] < test_start].reset_index(drop=True)
+            if "dest_source" in pre.columns and train_dest:
+                pre = pre[pre["dest_source"].astype(str).isin(train_dest)].reset_index(drop=True)
             val_n = max(500, int(0.1 * len(pre)))
             train_fit = pre.iloc[:-val_n].reset_index(drop=True)
             valid = pre.iloc[-val_n:].reset_index(drop=True)
@@ -255,6 +284,10 @@ def main():
         )
     else:
         train, test = chronological_split(d, test_frac=args.test_frac)
+        if "dest_source" in train.columns and train_dest:
+            train = train[train["dest_source"].astype(str).isin(train_dest)].reset_index(drop=True)
+        if "dest_source" in test.columns and test_dest:
+            test = test[test["dest_source"].astype(str).isin(test_dest)].reset_index(drop=True)
         val_n = max(500, int(0.1 * len(train)))
         valid = train.iloc[-val_n:].reset_index(drop=True)
         train_fit = train.iloc[:-val_n].reset_index(drop=True)
@@ -286,18 +319,16 @@ def main():
 
     bag_models = []
     bag_preds = []
-    # Up-weight precise destinations and GMaps-covered rows (cleaner signal).
-    # Alarm-box coords are the most accurate public destinations; zip centroids
-    # are noisy — down-weight them harder so year-scale data doesn't dilute.
+    # Cleaner-label training: zip centroids already dropped via --train-dest-sources.
+    # Still up-weight alarm_box + GMaps + traffic-covered rows within the clean set.
     sw = np.ones(len(train_p))
     if "dest_source" in train_p.columns:
         ds = train_p["dest_source"].astype(str)
-        sw = np.where(ds == "alarm_box", 1.5, np.where(ds == "intersection_geocode", 1.15, 0.65))
+        sw = np.where(ds == "alarm_box", 1.65, np.where(ds == "intersection_geocode", 1.0, 0.5))
     if "gmaps_ok" in train_p.columns:
-        sw = sw * np.where(pd.to_numeric(train_p["gmaps_ok"], errors="coerce").fillna(0) == 1, 1.15, 1.0)
-    # Mild up-weight when traffic sensors cover the hour (more accurate context).
+        sw = sw * np.where(pd.to_numeric(train_p["gmaps_ok"], errors="coerce").fillna(0) == 1, 1.2, 1.0)
     if "traffic_city_index" in train_p.columns:
-        sw = sw * np.where(pd.to_numeric(train_p["traffic_city_index"], errors="coerce").notna(), 1.08, 1.0)
+        sw = sw * np.where(pd.to_numeric(train_p["traffic_city_index"], errors="coerce").notna(), 1.12, 1.0)
     bag_specs = [
         (args.seed, "regression"),
         (args.seed + 1, "regression"),
@@ -339,6 +370,8 @@ def main():
 
     metrics = {
         "approach": "network_features+residual_bag4+hgb",
+        "train_dest_sources": sorted(train_dest) if train_dest else None,
+        "test_dest_sources": sorted(test_dest) if test_dest else "all",
         "n_train": int(len(full_train)),
         "n_test": int(len(test)),
         "n_features": int(X_full.shape[1]),
