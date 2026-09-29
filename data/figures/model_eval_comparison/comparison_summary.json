@@ -16,28 +16,20 @@
     },
     {
       "type": "hybrid_bag4",
-      "label": "Hybrid bag4",
-      "mae_seconds": 64.93740837037538,
-      "r2": 0.4208077232113193,
-      "notes": "Network features + residual 4-seed LightGBM bag"
-    },
-    {
-      "type": "hybrid_bag4_hgb",
-      "label": "Hybrid bag4+HGB",
-      "mae_seconds": 65.02396886970979,
-      "r2": 0.42054166965315465,
+      "label": "Hybrid bag4 (NYC)",
+      "mae_seconds": 64.48353559594553,
+      "r2": 0.4176195678715925,
+      "notes": "OD/engine-hour priors + residual bag4; HGB weight=0 on valid",
       "n_train": 860651,
       "n_test": 106844,
-      "notes": "Bag4 blended with HistGradientBoosting residual",
+      "n_features": 95,
       "subset_mae": {
-        "full": 65.02396886970979,
-        "alarm_box": 63.75257367344979,
-        "no_zip": 64.16270834280225
+        "full": 64.48353559594553,
+        "alarm_box": 63.192944414939895
       },
       "subset_r2": {
-        "full": 0.42054166965315465,
-        "alarm_box": 0.42004683453653624,
-        "no_zip": 0.42346825175984404
+        "full": 0.4176195678715925,
+        "alarm_box": 0.41703959136710156
       }
     }
   ],
@@ -47,10 +39,14 @@
     "traffic_range": "2023-01-01 \u2192 2025-03-31"
   },
   "alarm_box_slice": {
-    "mae_seconds": 63.75257367344979,
-    "r2": 0.42004683453653624,
+    "mae_seconds": 63.192944414939895,
+    "r2": 0.41703959136710156,
     "n": 73397,
-    "model_type": "hybrid_bag4_hgb"
+    "model_type": "hybrid_bag4"
   },
-  "note": "Travel-time model types on the same chronological holdout. Network + traffic is one feature/architecture type; hybrid bag4(+HGB) is another."
+  "delta_vs_network_traffic": {
+    "mae_seconds": -3.201026493389733,
+    "mae_improvement_pct": 4.729330285338584
+  },
+  "note": "NYC-only. Paris discarded. Hybrid uses OD priors + bag4 (no soft labels)."
 }

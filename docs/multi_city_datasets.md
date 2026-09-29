@@ -8,7 +8,6 @@ Public CAD sources that can expand training beyond NYC. Prefer cities with
 | City | Dataset | Why it helps | Status in repo |
 |---|---|---|---|
 | **San Francisco** | [Fire/EMS Calls for Service](https://data.sf.gov/resource/nuek-vuh3.json) (`nuek-vuh3`) | Medical incidents, `response_dttm`→`on_scene_dttm`, `case_location` lon/lat | `scripts/ingest_sf_ems.py` → `data/processed/od_pairs_sf_ems.csv` |
-| **Paris (BSPP)** | [ENS Fire Brigade challenge](https://paris-fire-brigade.github.io/data-challenge/challenge.html) | **Pre-departure GPS** + intervention lat/lon + `delta departure-presentation` (true travel); flags whether left from rescue center | Draft: `scripts/ingest_paris_bspp.py` → `od_pairs_paris_bspp.csv` |
 | **Dublin** | [DFB Ambulance Incidents](https://data.smartdublin.ie/dataset/fire-brigade-and-ambulance) GeoJSON | TOC/ORD/MOB/IA timestamps + geometry | Planned: `scripts/ingest_dublin_ems.py` |
 | **Chicago** | [EMS Calls](https://data.cityofchicago.org/) (search EMS / ambulance) | Large US CAD volume | Candidate |
 | **Seattle** | SPD/SFD 911 (data.seattle.gov) | West-coast network diversity | Candidate |
@@ -48,25 +47,3 @@ PYTHONPATH=src python scripts/train_route_eta_model.py \
 Raw SF CAD travel times alone do **not** support R² ≥ 0.9 (distance explains ~0% of
 observed travel variance). Multi-city training uses the same OSM→EMV label mapping
 as NYC, with a light blend toward observed EMS times only when the ratio is plausible.
-
-## Paris BSPP draft (GPS start + travel label)
-
-The [Paris Fire Brigade ENS challenge](https://paris-fire-brigade.github.io/data-challenge/challenge.html)
-is one of the few public EMV sources with **vehicle lat/lon before departure**,
-intervention coordinates, and `delta departure-presentation` (depart → on scene).
-It also flags `departed from its rescue center` (house vs already on the road).
-
-BSPP terms: challenge data is for that context unless BSPP agrees otherwise. Files
-are **not** vendored in-repo — download `x_train.csv` / `y_train.csv` from ENS into
-`data/raw/paris_bspp/`.
-
-```bash
-# Smoke-test the draft mapping with synthetic rows
-PYTHONPATH=src python scripts/ingest_paris_bspp.py --demo --limit 500
-
-# After placing real challenge CSVs in data/raw/paris_bspp/
-PYTHONPATH=src python scripts/ingest_paris_bspp.py --limit 20000
-# → data/processed/od_pairs_paris_bspp.csv
-```
-
-Next (not wired yet): Paris OSM graph + merge into `build_multicity_route_eta.py`.

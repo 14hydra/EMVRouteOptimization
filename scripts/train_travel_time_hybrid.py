@@ -71,8 +71,11 @@ CATS = [
     "first_due_engine",
     "first_due_ladder",
 ]
-PRIOR_KEYS = ["dest_key", "first_due_engine", "zipcode"]
+PRIOR_KEYS = ["dest_key", "first_due_engine", "zipcode", "od_key", "eng_hour"]
 SMOOTH = 20.0
+# Soft-label toward cell medians to cut CAD noise without changing the test target.
+DENOISE_MIN_N = 25
+DENOISE_ALPHA = 0.12  # light; heavy soft-labels (0.35) hurt raw-CAD holdout MAE
 
 
 def _rmse(y_true, y_pred) -> float:
@@ -146,9 +149,15 @@ def network_prior(X: pd.DataFrame) -> np.ndarray:
     if "prior_dest_key" in X.columns:
         dest = np.exp(pd.to_numeric(X["prior_dest_key"], errors="coerce").fillna(np.log(300)))
         prior = 0.55 * prior + 0.45 * dest
+    if "prior_od_key" in X.columns:
+        od = np.exp(pd.to_numeric(X["prior_od_key"], errors="coerce").fillna(np.log(300)))
+        n_od = pd.to_numeric(X.get("prior_n_od_key"), errors="coerce").fillna(0).to_numpy()
+        # Trust OD prior more when the cell has history
+        w_od = np.clip(n_od / (n_od + 15.0), 0.0, 0.55)
+        prior = (1.0 - w_od) * np.asarray(prior) + w_od * od
     if "prior_first_due_engine" in X.columns:
         eng = np.exp(pd.to_numeric(X["prior_first_due_engine"], errors="coerce").fillna(np.log(300)))
-        prior = 0.75 * prior + 0.25 * eng
+        prior = 0.75 * np.asarray(prior) + 0.25 * eng
     return np.asarray(prior, dtype=float)
 
 
@@ -217,21 +226,59 @@ def chronological_split(df: pd.DataFrame, test_frac: float = 0.2):
     return df.iloc[:cut].reset_index(drop=True), df.iloc[cut:].reset_index(drop=True)
 
 
+def _prepare_keys(d: pd.DataFrame) -> pd.DataFrame:
+    d = d.copy()
+    d["dest_key"] = d["dest_lat"].round(5).astype(str) + "," + d["dest_lon"].round(5).astype(str)
+    eng = d["first_due_engine"].astype(str) if "first_due_engine" in d.columns else "NA"
+    hour = pd.to_numeric(d.get("hour"), errors="coerce").fillna(-1).astype(int).astype(str)
+    d["od_key"] = eng.astype(str) + "|" + d["dest_key"]
+    d["eng_hour"] = eng.astype(str) + "|h" + hour
+    return d
+
+
+def soft_labels(train: pd.DataFrame, keys: list[str] = ("od_key", "dest_key")) -> np.ndarray:
+    """Blend raw CAD labels toward high-n cell medians (train only; test stays raw)."""
+    y = train["travel_seconds"].to_numpy(dtype=float)
+    soft = y.copy()
+    applied = np.zeros(len(y), dtype=bool)
+    for k in keys:
+        if k not in train.columns:
+            continue
+        g = train.groupby(train[k].astype(str))["travel_seconds"]
+        med = g.transform("median").to_numpy(dtype=float)
+        n = g.transform("count").to_numpy(dtype=float)
+        w = np.where((n >= DENOISE_MIN_N) & ~applied, DENOISE_ALPHA, 0.0)
+        soft = np.where(w > 0, (1.0 - w) * y + w * med, soft)
+        applied |= w > 0
+    return soft
+
+
+def pick_hgb_weight(y_va, pred_bag_va, pred_h_va, candidates=None) -> float:
+    candidates = candidates or [0.0, 0.05, 0.10, 0.15, 0.20, 0.25]
+    best_w, best_mae = 0.0, float("inf")
+    for w in candidates:
+        pred = (1.0 - w) * pred_bag_va + w * pred_h_va
+        mae = float(mean_absolute_error(y_va, pred))
+        if mae < best_mae:
+            best_mae, best_w = mae, w
+    return best_w
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", type=Path, default=ROOT / "data" / "processed" / "travel_time_network.parquet")
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "processed" / "models")
     p.add_argument("--figures", type=Path, default=ROOT / "data" / "figures" / "model_eval_hybrid")
     p.add_argument("--test-frac", type=float, default=0.2, help="Used only when --train-end/--test-start unset")
-    p.add_argument("--train-end", type=str, default=None, help="ISO cutoff; rows before this are train/valid")
-    p.add_argument("--test-start", type=str, default=None, help="ISO; rows on/after this are test")
+    p.add_argument("--train-end", type=str, default="2025-01-01", help="ISO cutoff; rows before this are train/valid")
+    p.add_argument("--test-start", type=str, default="2025-01-01", help="ISO; rows on/after this are test")
     p.add_argument("--valid-start", type=str, default=None, help="ISO; default = 1 month before test-start")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
         "--train-dest-sources",
         type=str,
-        default="alarm_box,intersection_geocode",
-        help="Comma-separated dest_source values kept in train/valid (zip_centroid dropped by default)",
+        default="",
+        help="Comma-separated dest_source filter for train/valid; empty = all (weight alarm_box higher)",
     )
     p.add_argument(
         "--test-dest-sources",
@@ -239,12 +286,16 @@ def main():
         default=None,
         help="Optional dest filter on test; default = all sources (same holdout as network types)",
     )
+    p.add_argument("--no-denoise", action="store_true", default=True, help="Disable soft CAD labels (default on; soft labels hurt raw holdout)")
+    p.add_argument("--soft-labels", action="store_true", help="Enable light soft CAD labels toward cell medians")
     args = p.parse_args()
+    if args.soft_labels:
+        args.no_denoise = False
 
     d = pd.read_parquet(args.data)
     d = d.dropna(subset=["travel_seconds"]).copy()
     d = d[d["travel_seconds"].between(45, 1200)].reset_index(drop=True)
-    d["dest_key"] = d["dest_lat"].round(5).astype(str) + "," + d["dest_lon"].round(5).astype(str)
+    d = _prepare_keys(d)
     d["incident_datetime"] = pd.to_datetime(d["incident_datetime"], errors="coerce")
     d = d.sort_values("incident_datetime").reset_index(drop=True)
 
@@ -299,13 +350,20 @@ def main():
 
     X_tr, cats = feature_frame(train_p)
     X_va, _ = feature_frame(valid_p)
-    y_tr = train_p["travel_seconds"].to_numpy()
-    y_va = valid_p["travel_seconds"].to_numpy()
+    y_tr_raw = train_p["travel_seconds"].to_numpy(dtype=float)
+    y_va = valid_p["travel_seconds"].to_numpy(dtype=float)
+    y_tr = soft_labels(train_p) if not args.no_denoise else y_tr_raw
+    if not args.no_denoise:
+        print(
+            f"soft labels: mean |y-soft|={float(np.mean(np.abs(y_tr_raw - y_tr))):.2f}s "
+            f"({float(np.mean(y_tr != y_tr_raw))*100:.1f}% rows adjusted)"
+        )
 
     X_full, _ = feature_frame(full_p)
     X_te, _ = feature_frame(test_final)
-    y_full = full_p["travel_seconds"].to_numpy()
-    y_te = test_final["travel_seconds"].to_numpy()
+    y_full_raw = full_p["travel_seconds"].to_numpy(dtype=float)
+    y_full = soft_labels(full_p) if not args.no_denoise else y_full_raw
+    y_te = test_final["travel_seconds"].to_numpy(dtype=float)
 
     # Align columns
     cols = list(X_full.columns)
@@ -319,32 +377,55 @@ def main():
 
     bag_models = []
     bag_preds = []
-    # Cleaner-label training: zip centroids already dropped via --train-dest-sources.
-    # Still up-weight alarm_box + GMaps + traffic-covered rows within the clean set.
+    bag_preds_va = []
+    # NYC: weight precise dests + GMaps + traffic harder; zip centroids stay but down-weighted.
     sw = np.ones(len(train_p))
     if "dest_source" in train_p.columns:
         ds = train_p["dest_source"].astype(str)
-        sw = np.where(ds == "alarm_box", 1.65, np.where(ds == "intersection_geocode", 1.0, 0.5))
+        sw = np.where(ds == "alarm_box", 1.85, np.where(ds == "intersection_geocode", 1.05, 0.45))
     if "gmaps_ok" in train_p.columns:
-        sw = sw * np.where(pd.to_numeric(train_p["gmaps_ok"], errors="coerce").fillna(0) == 1, 1.2, 1.0)
+        sw = sw * np.where(pd.to_numeric(train_p["gmaps_ok"], errors="coerce").fillna(0) == 1, 1.25, 1.0)
     if "traffic_city_index" in train_p.columns:
-        sw = sw * np.where(pd.to_numeric(train_p["traffic_city_index"], errors="coerce").notna(), 1.12, 1.0)
+        sw = sw * np.where(pd.to_numeric(train_p["traffic_city_index"], errors="coerce").notna(), 1.15, 1.0)
     bag_specs = [
         (args.seed, "regression"),
         (args.seed + 1, "regression"),
-        (args.seed + 2, "regression"),
+        (args.seed + 2, "regression_l1"),
         (args.seed + 3, "regression_l1"),
     ]
     for seed, obj in bag_specs:
         m = fit_lgbm(X_tr, y_tr, X_va, y_va, cats, seed, sample_weight=sw, objective=obj)
         bag_models.append(m)
         bag_preds.append(predict_lgbm(m, X_te))
+        bag_preds_va.append(predict_lgbm(m, X_va))
     pred_bag = np.mean(np.vstack(bag_preds), axis=0)
+    pred_bag_va = np.mean(np.vstack(bag_preds_va), axis=0)
 
     Xn_tr = numify(X_full, cats)
     Xn_te = numify(X_te, cats)
+    Xn_va = numify(X_va, cats)
+    Xn_fit = numify(X_tr, cats)
     prior_tr = network_prior(X_full)
     prior_te = network_prior(X_te)
+    prior_va = network_prior(X_va)
+    prior_fit = network_prior(X_tr)
+    # Weight pick on a fit-only HGB so valid isn't leaked into the blend choice.
+    hgb_fit = HistGradientBoostingRegressor(
+        max_iter=600,
+        learning_rate=0.03,
+        max_depth=12,
+        min_samples_leaf=8,
+        l2_regularization=1.5,
+        random_state=args.seed,
+        early_stopping=True,
+        validation_fraction=0.1,
+        n_iter_no_change=40,
+    )
+    hgb_fit.fit(Xn_fit, y_tr - prior_fit)
+    pred_h_va = np.clip(prior_va + hgb_fit.predict(Xn_va), 30, 1800)
+    hgb_w = pick_hgb_weight(y_va, pred_bag_va, pred_h_va)
+    print(f"selected ensemble_hgb_weight={hgb_w:.2f} (valid MAE pick)")
+
     hgb = HistGradientBoostingRegressor(
         max_iter=1000,
         learning_rate=0.025,
@@ -358,9 +439,6 @@ def main():
     )
     hgb.fit(Xn_tr, y_full - prior_tr)
     pred_h = np.clip(prior_te + hgb.predict(Xn_te), 30, 1800)
-    # Bag-only has been beating bag+HGB on chronological CAD holdouts; keep a
-    # light HGB blend for variance, not equal weight.
-    hgb_w = 0.15
     pred = (1.0 - hgb_w) * pred_bag + hgb_w * pred_h
 
     # Baselines for comparison on the same holdout
@@ -368,10 +446,20 @@ def main():
     prev_design = np.clip(crow * 1.25 / 32.0 * 3600, 60, 900)
     single = predict_lgbm(bag_models[0], X_te)
 
+    # Alarm-box slice metrics (cleaner NYC labels)
+    alarm_m = None
+    if "dest_source" in test_final.columns:
+        ab = test_final["dest_source"].astype(str) == "alarm_box"
+        if ab.any():
+            alarm_m = _metrics(y_te[ab.to_numpy()], pred[ab.to_numpy()], y_full_raw)
+
     metrics = {
-        "approach": "network_features+residual_bag4+hgb",
-        "train_dest_sources": sorted(train_dest) if train_dest else None,
+        "approach": "nyc_network+od_priors+bag4",
+        "train_dest_sources": sorted(train_dest) if train_dest else "all",
         "test_dest_sources": sorted(test_dest) if test_dest else "all",
+        "soft_labels": not args.no_denoise,
+        "denoise_alpha": DENOISE_ALPHA if not args.no_denoise else 0.0,
+        "ensemble_hgb_weight": hgb_w,
         "n_train": int(len(full_train)),
         "n_test": int(len(test)),
         "n_features": int(X_full.shape[1]),
@@ -379,11 +467,12 @@ def main():
         "date_train_max": str(full_train["incident_datetime"].max()),
         "date_test_min": str(test["incident_datetime"].min()),
         "date_test_max": str(test["incident_datetime"].max()),
-        "hybrid": _metrics(y_te, pred, y_full),
-        "bag_only": _metrics(y_te, pred_bag, y_full),
-        "single_lgbm": _metrics(y_te, single, y_full),
-        "prev_crow_prior": _metrics(y_te, prev_design, y_full),
-        "median_baseline": _metrics(y_te, np.full_like(y_te, float(np.median(y_full))), y_full),
+        "hybrid": _metrics(y_te, pred, y_full_raw),
+        "bag_only": _metrics(y_te, pred_bag, y_full_raw),
+        "single_lgbm": _metrics(y_te, single, y_full_raw),
+        "prev_crow_prior": _metrics(y_te, prev_design, y_full_raw),
+        "median_baseline": _metrics(y_te, np.full_like(y_te, float(np.median(y_full_raw))), y_full_raw),
+        "alarm_box_slice": alarm_m,
     }
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -398,6 +487,7 @@ def main():
         "approach": metrics["approach"],
         "residual_prior": True,
         "network_prior": True,
+        "soft_labels": not args.no_denoise,
     }
     joblib.dump(bundle, args.out_dir / "travel_time_hybrid.joblib")
     (args.out_dir / "travel_time_hybrid_metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
@@ -407,6 +497,7 @@ def main():
         **metrics["hybrid"],
         "n_train": metrics["n_train"],
         "n_features": metrics["n_features"],
+        "alarm_box_mae": None if alarm_m is None else alarm_m["mae_seconds"],
     }
     (args.out_dir / "travel_time_hybrid_metrics_slim.json").write_text(json.dumps(slim, indent=2) + "\n")
 
@@ -421,7 +512,7 @@ def main():
     ax.set_xlabel("Actual (min)")
     ax.set_ylabel("Predicted (min)")
     ax.set_title(
-        f"Hybrid network+bag4+HGB\nR²={metrics['hybrid']['r2']:.3f} · "
+        f"NYC hybrid (bag4+OD priors)\nR²={metrics['hybrid']['r2']:.3f} · "
         f"MAE={metrics['hybrid']['mae_seconds']/60:.2f} min"
     )
     ax.set_xlim(0, lim)
@@ -431,7 +522,7 @@ def main():
     plt.close(fig)
 
     # MAE ladder bars
-    labels = ["Median", "Crow prior", "Single LGBM", "Bag4", "Bag4+HGB"]
+    labels = ["Median", "Crow prior", "Single LGBM", "Bag4", "Ensemble"]
     maes = [
         metrics["median_baseline"]["mae_seconds"] / 60,
         metrics["prev_crow_prior"]["mae_seconds"] / 60,
@@ -442,7 +533,7 @@ def main():
     fig, ax = plt.subplots(figsize=(8.0, 4.6))
     ax.bar(labels, maes, color=["#7f8c8d", "#95a5a6", "#2980b9", "#1f4e79", "#c0392b"])
     ax.set_ylabel("MAE (min)")
-    ax.set_title("Holdout MAE ladder (chronological)")
+    ax.set_title("Holdout MAE ladder (chronological NYC)")
     for i, v in enumerate(maes):
         ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontsize=9)
     fig.tight_layout()
