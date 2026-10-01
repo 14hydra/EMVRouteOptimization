@@ -1,0 +1,11 @@
+candidate_id,site_name,layer,lon,lat,is_existing,borough
+257,Demand cell 38,demand_cell,-73.94591943157894,40.82761256578947,False,
+271,Demand cell 52,demand_cell,-73.92111130746268,40.82732650447761,False,
+231,Demand cell 12,demand_cell,-73.98218663846153,40.746300417307694,False,
+240,Demand cell 21,demand_cell,-73.90953315704388,40.664839309468825,False,
+277,Demand cell 58,demand_cell,-73.80563792429022,40.701951217665616,False,
+276,Demand cell 57,demand_cell,-73.93710016199377,40.82856484423676,False,
+221,Demand cell 2,demand_cell,-73.92275085496183,40.80958855725191,False,
+234,Demand cell 15,demand_cell,-73.88674842828685,40.84562531673306,False,
+254,Demand cell 35,demand_cell,-73.89894818062827,40.863423513089,False,
+252,Demand cell 33,demand_cell,-73.94691238560411,40.78350087917738,False,

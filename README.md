@@ -63,13 +63,20 @@ PYTHONPATH=src python scripts/train_travel_time_network.py
 
 # Optimal patrol posts / loops (mentor ask)
 PYTHONPATH=src python scripts/build_patrol_routes.py
+
+# Firehouse redesign / replace (facility location)
+PYTHONPATH=src python scripts/plan_firehouse_locations.py --city nyc --mode replace --replace 10 --no-graph
 ```
 
-See `docs/starting_locations.md`, `docs/travel_time_training.md`, and `docs/patrol_routes.md`.
+See `docs/starting_locations.md`, `docs/travel_time_training.md`,
+`docs/patrol_routes.md`, `docs/firehouse_location.md`, and
+`docs/model_implementations_template.md`
+(catalog of major model implementations / changes + blank entry form).
 
 ## What differentiates this from prior EMV projects
 
 1. **Missing-start CAD** — hybrid firehouse + on-road CSL inference for real NYC open data (no unit GPS).
 2. **Civilian control vs EMV privileges** — Google Maps / civilian graph as control; EMV ROW (busways, limited contraflow) on the same clock.
 3. **Prescriptive patrol** — same layers as inferred starts, flipped forward: where *should* apparatus sit before the next call.
-4. **Honest limits** — ZIP-centroid destinations, weak street/weather correlations documented, not oversold.
+4. **Firehouse redesign / replace** — city + fleet size / replace count → optimal facility sites using firetruck graph routing + CAD-calibrated travel.
+5. **Honest limits** — ZIP-centroid destinations, weak street/weather correlations documented, not oversold.

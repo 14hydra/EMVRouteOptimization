@@ -1,0 +1,11 @@
+candidate_id,site_name,layer,lon,lat,is_existing,borough
+2,Manhattan Borough Command/Battalion 1/Engine 7/Ladder 1,existing_firehouse,-74.0063,40.715339,True,Manhattan
+8,Division 1/Ladder 20,existing_firehouse,-73.996571,40.723026,True,Manhattan
+10,Battalion 6/Ladder 3,existing_firehouse,-73.989443,40.733093,True,Manhattan
+13,Engine 26,existing_firehouse,-73.990376,40.753107,True,Manhattan
+19,Battalion 9/Engine 54/Ladder 4,existing_firehouse,-73.986793,40.76072,True,Manhattan
+47,Marine 1,existing_firehouse,-74.011815,40.740647,True,Manhattan
+48,Battalion 14/Engine 60/Ladder 17,existing_firehouse,-73.922146,40.813163,True,Bronx
+57,Engine 46/Ladder 27,existing_firehouse,-73.90016,40.843919,True,Bronx
+60,Division 7/Engine 48/Ladder 56,existing_firehouse,-73.893992,40.859318,True,Bronx
+113,Engine 277/Ladder 112,existing_firehouse,-73.914659,40.696397,True,Brooklyn

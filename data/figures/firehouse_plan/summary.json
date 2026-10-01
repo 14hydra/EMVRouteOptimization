@@ -1,0 +1,62 @@
+{
+  "city_id": "nyc",
+  "mode": "replace",
+  "objective": "response_time",
+  "n_existing_firehouses": 219,
+  "n_candidates": 279,
+  "n_demand_cells": 807,
+  "n_incidents": 80000,
+  "n_selected": 219,
+  "n_closed": 10,
+  "n_opened": 10,
+  "threshold_min": 8.0,
+  "plan": {
+    "label": "plan_replace",
+    "n_posts": 219,
+    "expected_response_s": 110.3,
+    "median_response_s": 98.6,
+    "p90_response_s": 198.4,
+    "worst_cell_response_s": 515.4,
+    "coverage_share_within_threshold": 0.9996,
+    "threshold_s": 480.0,
+    "demand_cells": 807,
+    "objective_value": 110.32043334326632
+  },
+  "baselines": {
+    "current_firehouses": {
+      "label": "current_firehouses",
+      "n_posts": 219,
+      "expected_response_s": 115.2,
+      "median_response_s": 103.7,
+      "p90_response_s": 200.0,
+      "worst_cell_response_s": 515.4,
+      "coverage_share_within_threshold": 0.9996,
+      "threshold_s": 480.0,
+      "demand_cells": 807
+    },
+    "random_replace": {
+      "label": "random_replace",
+      "n_posts": 219,
+      "expected_response_s": 117.0,
+      "median_response_s": 103.8,
+      "p90_response_s": 209.9,
+      "worst_cell_response_s": 615.8,
+      "coverage_share_within_threshold": 0.9987,
+      "threshold_s": 480.0,
+      "demand_cells": 807
+    }
+  },
+  "delta_vs_current_s": -4.9,
+  "travel": {
+    "surrogate_speed_kph": 28.0,
+    "graph_used": false,
+    "graph_resolved_share": 0.0,
+    "calibrator": {
+      "a": 0.0,
+      "b": 1.0
+    }
+  },
+  "replace_r": 10,
+  "n_swaps": 10,
+  "honesty": "Travel-only facility location on discrete candidates (existing houses + demand centroids). No parcel, zoning, or staffing constraints. Graph times use firetruck edge weights; affine-calibrated to CAD travel when available."
+}

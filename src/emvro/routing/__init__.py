@@ -34,6 +34,13 @@ from .graph import (
     nearest_node,
     prepare_routing_graph,
 )
+from .firetruck import (
+    WEIGHT_KEY as FIRETRUCK_WEIGHT_KEY,
+    annotate_firetruck_costs,
+    firetruck_route,
+    firetruck_route_latlon,
+    prepare_firetruck_graph,
+)
 
 __all__ = [
     "RouteResult",
@@ -60,4 +67,9 @@ __all__ = [
     "annotate_emv_road_privileges",
     "path_corridor_segments",
     "count_corridor_edges",
+    "prepare_firetruck_graph",
+    "annotate_firetruck_costs",
+    "firetruck_route",
+    "firetruck_route_latlon",
+    "FIRETRUCK_WEIGHT_KEY",
 ]
