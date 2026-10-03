@@ -50,7 +50,6 @@ Legacy `--start-mode static|csl|hybrid` keeps the older nearest-depot heuristics
 python scripts/download_datasets.py --limit 5000   # includes fire_companies.geojson
 python scripts/build_od_pairs.py                   # default --start-mode first_due
 python scripts/build_od_pairs.py --start-mode hybrid   # legacy nearest-depot rule
-PYTHONPATH=src python scripts/visualize_data.py
 PYTHONPATH=src python scripts/build_travel_time_training_set.py
 PYTHONPATH=src python scripts/train_travel_time_model.py
 ```

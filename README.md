@@ -66,6 +66,10 @@ PYTHONPATH=src python scripts/build_patrol_routes.py
 
 # Firehouse redesign / replace (facility location)
 PYTHONPATH=src python scripts/plan_firehouse_locations.py --city nyc --mode replace --replace 10 --no-graph
+
+# London incident density map (LFB incidents → data/figures/london_incident_density.html)
+# Needs data/raw/london/lfb_incidents_2024_onwards.csv
+PYTHONPATH=src python scripts/visualize_data.py
 ```
 
 See `docs/starting_locations.md`, `docs/travel_time_training.md`,

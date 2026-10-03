@@ -1,15 +1,134 @@
 {
-  "figures": [
-    "01_start_layers.png",
-    "02_travel_times.png",
-    "03_distance_vs_travel.png",
-    "04_od_spatial.png",
-    "05_depot_inventory.png",
-    "06_gmaps_control.png",
-    "07_first_due_qc.png"
+  "map": "data/figures/london_incident_density.html",
+  "incidents": 358338,
+  "date_range": [
+    "2024-01-01",
+    "2026-07-31"
   ],
-  "map": "/Users/sarpakalin/git/EMVRouteOptimization/data/figures/emv_nyc_map.html",
-  "od_rows": 17741,
-  "gmaps_control_rows": 0,
-  "google_maps_key_present": false
+  "incidents_per_day": 380.0,
+  "median_first_pump_s": 309.0,
+  "kde_sigma_m": 90,
+  "pixel_m": 25,
+  "legend_incidents_per_km2_yr": {
+    "All incidents": [
+      "11",
+      "35",
+      "110",
+      "350",
+      "1,100"
+    ],
+    "False Alarm": [
+      "7.8",
+      "25",
+      "78",
+      "250",
+      "780"
+    ],
+    "Special Service": [
+      "4.1",
+      "13",
+      "41",
+      "130",
+      "410"
+    ],
+    "Fire": [
+      "1.7",
+      "5.4",
+      "17",
+      "54",
+      "170"
+    ]
+  },
+  "hotspots": [
+    {
+      "rank": 1,
+      "ward": "Church Street",
+      "borough": "Westminster",
+      "postcode": "NW8",
+      "n": 810,
+      "lat": 51.52483649586214,
+      "lon": -0.16714241498588542
+    },
+    {
+      "rank": 2,
+      "ward": "West End",
+      "borough": "Westminster",
+      "postcode": "W1S",
+      "n": 773,
+      "lat": 51.510902713197865,
+      "lon": -0.1388791533244951
+    },
+    {
+      "rank": 3,
+      "ward": "West End",
+      "borough": "Westminster",
+      "postcode": "W1D",
+      "n": 747,
+      "lat": 51.515281555139595,
+      "lon": -0.13149433015452566
+    },
+    {
+      "rank": 4,
+      "ward": "St. James's",
+      "borough": "Westminster",
+      "postcode": "W1D",
+      "n": 741,
+      "lat": 51.51078822541223,
+      "lon": -0.13167818440643597
+    },
+    {
+      "rank": 5,
+      "ward": "Church Street",
+      "borough": "Westminster",
+      "postcode": "NW1",
+      "n": 684,
+      "lat": 51.52034308309312,
+      "lon": -0.16732282395578224
+    },
+    {
+      "rank": 6,
+      "ward": "Bloomsbury",
+      "borough": "Camden",
+      "postcode": "NW1",
+      "n": 648,
+      "lat": 51.524382745535235,
+      "lon": -0.13832957131649656
+    },
+    {
+      "rank": 7,
+      "ward": "West End",
+      "borough": "Westminster",
+      "postcode": "W1F",
+      "n": 633,
+      "lat": 51.51539606124157,
+      "lon": -0.13869600679319122
+    },
+    {
+      "rank": 8,
+      "ward": "Earl's Court",
+      "borough": "Kensington and Chelsea",
+      "postcode": "SW5",
+      "n": 625,
+      "lat": 51.49382870126822,
+      "lon": -0.19719807453727678
+    },
+    {
+      "rank": 9,
+      "ward": "St. James's",
+      "borough": "Westminster",
+      "postcode": "WC2E",
+      "n": 613,
+      "lat": 51.51067329578651,
+      "lon": -0.1244772631211754
+    },
+    {
+      "rank": 10,
+      "ward": "West End",
+      "borough": "Westminster",
+      "postcode": "W1W",
+      "n": 554,
+      "lat": 51.519889405354036,
+      "lon": -0.13851281279593974
+    }
+  ]
 }
