@@ -42,6 +42,13 @@ LOG_DECADES = 2.0  # colour scale spans vmax/100 .. vmax (log)
 HOTSPOT_CELL_M = 500  # hotspot cell size, ~a few city blocks
 N_HOTSPOTS = 10
 CMAP = "YlOrRd"  # sequential: density is a magnitude, one hue family low→high
+# Overlay opacity ramps from ALPHA_MIN (lowest density) to ALPHA_MAX (highest); kept
+# well below 1 so streets and labels show through even in the densest areas.
+ALPHA_MIN, ALPHA_MAX = 0.10, 0.55
+
+
+def _alpha(t):
+    return ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * t**0.8
 
 GROUP_COLORS = {"False Alarm": "#7f7f7f", "Special Service": "#1f77b4", "Fire": "#d62728"}
 
@@ -144,7 +151,7 @@ def _density_layer(grid: Grid, sub: pd.DataFrame, years: float) -> dict:
     t = np.clip((np.log10(np.maximum(dens, 1e-12)) - np.log10(vmin)) / LOG_DECADES, 0, 1)
     rgba = colormaps[CMAP](t)
     # Fade the low end out so the basemap stays readable where little happens.
-    rgba[..., 3] = np.where(dens < vmin, 0.0, 0.18 + 0.67 * t**0.8)
+    rgba[..., 3] = np.where(dens < vmin, 0.0, _alpha(t))
     buf = io.BytesIO()
     # 256-colour palette PNG: ~5x smaller than RGBA at this resolution, no visible banding.
     img = Image.fromarray((rgba * 255).astype(np.uint8), "RGBA").quantize(256, method=Image.Quantize.FASTOCTREE)
@@ -253,7 +260,7 @@ def _panel_html(df: pd.DataFrame, n_days: int, hotspots: list[dict], layer_names
     )
     cmap = colormaps[CMAP]
     grad = ", ".join(
-        f"rgba({int(r * 255)},{int(g * 255)},{int(b * 255)},{0.18 + 0.67 * t**0.8:.2f}) {t * 100:.0f}%"
+        f"rgba({int(r * 255)},{int(g * 255)},{int(b * 255)},{_alpha(t):.2f}) {t * 100:.0f}%"
         for t in np.linspace(0, 1, 9)
         for r, g, b, _ in [cmap(t)]
     )
@@ -445,7 +452,7 @@ def build_map(df: pd.DataFrame, out: Path) -> tuple[Path, dict]:
               // Fade the surface at street level so the streets underneath stay readable.
               function fade() {
                 var z = map.getZoom();
-                if (overlay) overlay.setOpacity(z >= 16 ? 0.5 : z >= 14 ? 0.7 : 1);
+                if (overlay) overlay.setOpacity(z >= 16 ? 0.65 : z >= 14 ? 0.8 : 1);
               }
               map.on('zoomend', fade);
               document.querySelectorAll('input[name=lfb-layer]').forEach(function(r) {
