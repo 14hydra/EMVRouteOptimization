@@ -7,20 +7,35 @@ do not exist yet. Used by the placement scorer in `docs/firehouse_location.md`.
 > **EXISTS** = in the repo today. **PLANNED** = in the plan, not built or run.
 > **`scripts/train_travel_time_lfb.py` EXISTS**: placement-ready (no station IDs), gradient-boosted
 > decision trees (LightGBM) predicting drive time directly, averaged over 4 seeds, features
-> `crow_km` + hour / dow / month / rush / night / `busy_flag` / borough; chronological train
-> **2024** (plus **2023** when ingested), test **2025**; held-out MAE ≈ **78 s** on approximate
-> drive (`attendance − 60 s` turnout prior). Numbers in the Legacy NYC appendix are FDNY.
+> `road_km` (shortest legal route, one-way streets respected) + `crow_km` + hour / dow / month /
+> rush / night / `busy_flag` / borough; trained on **1,024,833
+> engine trips** from LFB mobilisation records, each from the **real station building the engine
+> left from** to the incident; chronological train **2021–2024**, test **2025**; held-out MAE
+> **64.2 s** on recorded driving time (`TravelTimeSeconds`). Numbers in the Legacy NYC appendix are FDNY.
 
-## Target and label caveat
+## Target and trip origin
 
-- Public LFB incident CSV: `FirstPumpArriving_AttendanceTime` = **mobilise → arrive**
-  = turnout + drive. Turnout and drive cannot be separated from the public file.
-- `scripts/build_lfb_planner_incidents.py` maps attendance to `travel_seconds`
-  (kept if 30–1800 s). **That column is attendance, not pure driving.**
-- Plan: when LFB **mobilisation** data is available, fit per-station turnout and
-  train on `drive = attendance − turnout`. Until then, either (a) train on attendance
-  and treat the model as a drive+turnout predictor, or (b) subtract the
-  `lfb_standards.DEFAULT_TURNOUT_S` (60 s) prior. We will state which one a result uses.
+- **Target:** LFB mobilisation records (London Datastore) give `TravelTimeSeconds`
+  (leaving the station → arriving), recorded separately from `TurnoutTimeSeconds`.
+  The model is trained on that driving time directly. **EXISTS**
+- **Origin:** each mobilisation names the station the engine left from
+  (`DeployedFromStation_Name`) and whether it was at its home station or standing in at
+  another (`DeployedFromLocation`). The origin is that station's building, from
+  OpenStreetMap (`scripts/build_london_firehouses.py` → `data/raw/london/london_firehouses.csv`).
+  Engines already out on the road ("On outside duty when mobilised") and trips with a wrong
+  address are dropped. **EXISTS**
+- **Effect of the real origin:** on the same trips, measuring distance from the real station
+  building instead of the centre of its station area lowers held-out 2025 MAE from
+  **72.8 s to 67.9 s** (Kolesar: 77.3 s → 71.4 s). Station buildings sit a median 0.49 km from
+  their area's centre.
+- **Road distance:** `road_km` is the shortest-distance route on London's directed OSM drive
+  graph (`emvro.road_distance`; Geofabrik Greater London extract, osmnx "drive" filter, largest
+  strongly connected component: 131,549 junctions, 306,131 directed segments, 30,145 one-way).
+  One-way streets are a single directed edge, so Dijkstra only uses them in their legal
+  direction. Station and incident are snapped to the nearest junction, and the straight-line
+  hop to it is added. Engines are assumed to take the shortest-distance route (no route model
+  yet; emergency exemptions such as contraflow or bus gates are not modelled). Road distance is
+  a median 1.37× straight-line. Adding it lowered 2025 MAE from **67.9 s to 64.2 s**. **EXISTS**
 - Placement is scored as `predicted_drive + station's recorded turnout`.
 
 ## Design
@@ -35,12 +50,8 @@ do not exist yet. Used by the placement scorer in `docs/firehouse_location.md`.
 | Context features | `crow_km`, hour, dow, month, rush, night, `busy_flag`, borough (label-encoded area context) | **EXISTS** in LFB trainer |
 | Extra context | Weather (Open-Meteo, `emvro.weather`), incident type | tooling **EXISTS**; use in London model **PLANNED** |
 
-Because the label is attendance (turnout + drive), the *origin* of each LFB call is
-the deployed station (`FirstPumpArriving_DeployedFromStation`), which London **does** record
-(unlike FDNY; see `docs/starting_locations.md`). Station coordinates come from
-`data/raw/london/london_firehouses.csv` (station-ground centroids, proxy) via
-`deployed_from_station` with fallback to `station_ground` (`emvro.london_eval.load_london`).
-**EXISTS**; coordinate QA remains ongoing.
+London records the station every engine left from (unlike FDNY; see
+`docs/starting_locations.md`), so each trip's origin is known; see *Target and trip origin*.
 
 ## Baselines (all on the same 2025 test calls)
 
@@ -48,11 +59,12 @@ the deployed station (`FirstPumpArriving_DeployedFromStation`), which London **d
 |---|---|---|
 | Median | Predict train median `drive_s` | **EXISTS** (printed by `train_travel_time_lfb.py`) |
 | Crow-flies | Fixed 32 km/h on `crow_km` | **EXISTS** (same script) |
-| Road | Shortest-path network distance → speed fit | **PLANNED** (needs London graph) |
+| Road | Shortest legal route distance at one fitted speed (35 km/h) | **EXISTS** (80.8 s MAE) |
+| Kolesar (road) | Kolesar curve on `road_km` | **EXISTS** (68.7 s MAE; 71.4 s on `crow_km`) |
 | **Kolesar** | `fit_kolesar(crow_km, drive_s)` on train | **EXISTS** |
 | Linear regression | Same features as the ML model, no trees | **PLANNED** |
 | Neural net | Small MLP on same features | **PLANNED** |
-| **LightGBM** | Proposed placement model | **EXISTS** (78.4 s MAE on 2025 approximate drive vs Kolesar 81.8 s) |
+| **LightGBM** | Proposed placement model | **EXISTS** (64.2 s MAE on 2025 recorded driving time vs Kolesar on road distance 68.7 s) |
 
 Report MAE, RMSE, R², and for placement-relevant scoring the share of calls predicted
 within 6 / 10 min versus observed (`lfb_standards.score_first_engine`).
@@ -87,14 +99,16 @@ within 6 / 10 min versus observed (`lfb_standards.score_first_engine`).
 ## Run (what works today for London)
 
 ```bash
+# Inputs in data/raw/london/ (London Datastore, OGL): lfb_mobilisations_2021_2024.csv,
+# lfb_mobilisations_2025.csv, lfb_incidents_2018_2023.csv, lfb_incidents_2024_onwards.csv
 PYTHONPATH=src python scripts/build_lfb_planner_incidents.py
-PYTHONPATH=src python scripts/train_travel_time_lfb.py
+python scripts/build_london_firehouses.py      # real station locations (OpenStreetMap)
+python scripts/build_lfb_travel_training.py    # one row per engine trip; builds the road graph on first run
+python scripts/train_travel_time_lfb.py
 ```
 
 Writes `data/processed/models/travel_time_lfb.joblib` and
 `travel_time_lfb.metrics.json` (test-year metrics, Kolesar params, feature list).
-Target is approximate drive (`travel_seconds − DEFAULT_TURNOUT_S`), not pure driving time
-from mobilisation records.
 
 ---
 

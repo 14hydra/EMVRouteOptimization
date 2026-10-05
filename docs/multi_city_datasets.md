@@ -12,7 +12,7 @@ supplied scaffolding code. Prefer sources with **coordinates + a mobilise→arri
 |---|---|---|
 | Incidents + attendance | **LFB incident records** (London Datastore): `FirstPumpArriving_AttendanceTime` (mobilise→arrive), `FirstPumpArriving_DeployedFromStation`, `IncidentStationGround`, second pump fields, BNG `Easting_m`/`Northing_m` and lat/lon | **EXISTS**: `data/raw/london/lfb_incidents_2024_onwards.csv` (+ xlsx). Calendar years 2024 → partial 2026. **2023 and earlier PLANNED** (training/demand use 2023–24, eval 2025) |
 | Planner extract | `scripts/build_lfb_planner_incidents.py` → `lfb_incidents_planner.csv` (~129k rows after coordinate + 30–1800 s attendance filter) | **EXISTS** |
-| Stations | `data/raw/london/london_firehouses.csv` (name, lat, lon; station-ground centroids) | **EXISTS** (proxy coordinates) |
+| Stations | `data/raw/london/london_firehouses.csv` (name, lat, lon; real station buildings from OpenStreetMap) | **EXISTS** |
 | Mobilisation records (turnout vs drive split) | LFB, when available | **PLANNED / not obtained** |
 | Street network, primary | **Ordnance Survey NGD** road links (class, width, speed limit, directionality) | **PLANNED** — not downloaded, no loader |
 | Street network, fallback | **OpenStreetMap** (OSMnx) | Tooling **EXISTS** (`scripts/build_osm_graph.py`); `london_drive.graphml` not built |

@@ -85,7 +85,7 @@ The repo currently has LFB data from 2024 onward only, so demand is **2024-only 
 |---|---|---|
 | Incidents, attendance, deployed station, 2nd pump | **LFB incident records** (London Datastore). `data/raw/london/lfb_incidents_2024_onwards.csv` (+ xlsx) | **EXISTS** (2024 → 2026 partial); 2023 and earlier **PLANNED** |
 | Planner extract | `scripts/build_lfb_planner_incidents.py` → `data/raw/london/lfb_incidents_planner.csv` (lat/lon from BNG, `travel_seconds` = attendance, `busy_flag`) | **EXISTS** (~129k rows) |
-| Station list | `data/raw/london/london_firehouses.csv` (station-ground centroids as proxy sites) | **EXISTS** (proxy, not surveyed station coordinates) |
+| Station list | `data/raw/london/london_firehouses.csv` (real station buildings from OpenStreetMap; `scripts/build_london_firehouses.py`) | **EXISTS** |
 | Street network (primary goal) | **Ordnance Survey NGD** (road links with width, speed limit, class, directionality) | **PLANNED** — not downloaded, no loader yet |
 | Street network (fallback) | **OpenStreetMap** via OSMnx (`scripts/build_osm_graph.py`, `emvro.street_features`) | Tooling **EXISTS**; London graph (`london_drive.graphml`) not built yet |
 | Weather | Open-Meteo archive hourly (`emvro.weather`) | Tooling **EXISTS** (cached for NYC); London pull **PLANNED** |
@@ -174,7 +174,7 @@ summary, drive + turnout attendance scoring, `--demand-years` / `--eval-years` w
 ## Limits and honesty
 
 - Public LFB attendance = turnout + drive; we cannot separate them without mobilisation data.
-- Station sites in `london_firehouses.csv` are centroids derived from station-ground data, not surveyed coordinates.
+- Station sites in `london_firehouses.csv` come from OpenStreetMap building footprints, name-matched to LFB stations (8 pinned by hand, see the script).
 - `busy_flag` (first pump deployed from a station other than the incident's ground station)
   is a proxy for "home engine unavailable".
 - Candidate sites are discrete; no land cost, staffing, or planning constraints.

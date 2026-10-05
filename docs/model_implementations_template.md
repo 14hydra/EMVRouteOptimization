@@ -155,13 +155,13 @@ Do **not** compare route-ETA R² (~0.96) to CAD hybrid R² (~0.42) as if they we
 - **Date:** 2026-10-04
 - **Status:** active (crow/context features); full street attrs **planned**
 - **Family:** LFB travel-time
-- **Label / target:** approx drive = attendance − DEFAULT_TURNOUT_S (60 s)
-- **Holdout:** train 2024 (2023 when present), test 2025
-- **Features:** crow_km, hour/dow/month, rush/night, busy_flag, borough (label); **no station IDs**
+- **Label / target:** recorded driving time (`TravelTimeSeconds`, LFB mobilisation records); origin = real station building the engine left from (OSM)
+- **Holdout:** train 2021–2024 (701k trips), test 2025 (201k trips)
+- **Features:** road_km (shortest legal route, one-ways respected), crow_km, hour/dow/month, rush/night, busy_flag, borough (label); **no station IDs**
 - **Model / algorithm:** LightGBM (L1) predicting drive time directly, 4 seeds averaged; no Kolesar prior (changed 2026-10-04)
 - **Train script:** `scripts/train_travel_time_lfb.py` → `data/processed/models/travel_time_lfb.joblib`
 - **Baselines:** median, crow@32kph, Kolesar (**EXISTS**); road / linear / NN **planned**
-- **Headline metrics:** 2025 MAE ≈ **78.4 s** (LightGBM) vs Kolesar 81.8 s / median 106.5 s
+- **Headline metrics:** 2025 MAE **64.2 s** (LightGBM with road distance) vs Kolesar on road distance 68.7 s / median 111.9 s. Steps (2026-10-05): real station origin 72.8 → 67.9 s; + shortest legal road distance (one-way streets respected) 67.9 → 64.2 s
 - **Ablations / interpretability:** ablations and SHAP **planned**
 - **Docs:** `docs/travel_time_training.md`
 
