@@ -1,7 +1,7 @@
 # EMV Route Optimization — London Fire Brigade station placement (CSEF / ISEF)
 
 **Optimizing London Fire Brigade station placement with a street-characteristic
-travel-time model** (Kolesar parametric prior + LightGBM residual bag-of-4),
+travel-time model** (gradient-boosted decision trees, LightGBM),
 scored on held-out 2025 LFB calls.
 
 Team: **Ricky Zhao** and **Sarp Akalin** (ASI), CSEF/ISEF.
@@ -17,7 +17,7 @@ predictions beat placement by straight-line distance or the classic Kolesar
 distance→time curve, when scored on real 2025 LFB calls?
 
 **Hypothesis.** A travel-time model that sees street characteristics (road class,
-width, speed limits, one-ways, junction density, …) on top of a Kolesar prior will
+width, speed limits, one-ways, junction density, …) will
 rank candidate station layouts differently from distance-only or Kolesar-only
 placement, and the street-aware layout will do better on held-out calls
 (mean first-engine attendance and share of calls within 10 min).
@@ -55,7 +55,7 @@ attendance  =  predicted driving time (station → incident)  +  that station's 
 
 | # | Model | Role | Status |
 |---|---|---|---|
-| 1 | **Travel-time LightGBM, no station IDs** — Kolesar prior + residual bag-of-4 | Predict driving time to any point from any site | Kolesar **EXISTS**; `scripts/train_travel_time_lfb.py` **EXISTS** (crow/context features; full street attrs **PLANNED**) |
+| 1 | **Travel-time LightGBM, no station IDs** — gradient-boosted trees, 4-seed average | Predict driving time to any point from any site | Kolesar **EXISTS**; `scripts/train_travel_time_lfb.py` **EXISTS** (crow/context features; full street attrs **PLANNED**) |
 | 2 | **Route model** with learned segment speeds | Dijkstra under learned EMV edge speeds; FOI GPS when available | API scaffold **EXISTS** (`segment_speeds.py`); London graph + FOI **PLANNED** |
 | 3 | **Placement on a directed street graph** | redesign / replace / expand station sets | All three modes **EXISTS**; London OSM/OS NGD graph **PLANNED** |
 

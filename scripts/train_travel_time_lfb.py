@@ -3,9 +3,9 @@
 Placement-ready London (LFB) drive-time trainer.
 
 Target: drive_s = travel_seconds - DEFAULT_TURNOUT_S, clipped to [30, 1200].
-Model:  Kolesar(crow_km) prior (fit on train) + bag of 4 gradient-boosted
-        regressors on the RESIDUAL (seeds 42-45). LightGBM if importable, else
-        sklearn HistGradientBoostingRegressor.
+Model:  gradient-boosted decision trees (LightGBM) predicting drive_s directly,
+        averaged over 4 random seeds (42-45). No parametric prior: the Kolesar
+        formula is refit on train only as a comparison baseline.
 
 Features are placement-safe: crow_km, hour, dow, month, rush, night, busy_flag,
 borough (label-encoded area context). Station ID / first_due_engine / station
@@ -60,38 +60,26 @@ def add_features(df: pd.DataFrame, borough_cats: list[str]) -> pd.DataFrame:
 
 
 def make_regressor(seed: int):
-    try:
-        import lightgbm as lgb
+    import lightgbm as lgb
 
-        return "lightgbm", lgb.LGBMRegressor(
-            n_estimators=400, learning_rate=0.04, num_leaves=31, min_child_samples=50,
-            subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0,
-            objective="l1", random_state=seed, n_jobs=4, verbose=-1,
-        )
-    except Exception:  # noqa: BLE001
-        from sklearn.ensemble import HistGradientBoostingRegressor
-
-        return "sklearn_hgb", HistGradientBoostingRegressor(
-            loss="absolute_error", max_iter=300, learning_rate=0.05, random_state=seed,
-            categorical_features=[FEATURES.index("borough_code")],
-        )
+    return lgb.LGBMRegressor(
+        n_estimators=400, learning_rate=0.04, num_leaves=31, min_child_samples=50,
+        subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0,
+        objective="l1", random_state=seed, n_jobs=4, verbose=-1,
+    )
 
 
-def fit_bag(x: pd.DataFrame, resid: np.ndarray):
-    models, kind = [], ""
+def fit_bag(x: pd.DataFrame, y: np.ndarray):
+    models = []
     for s in SEEDS:
-        kind, m = make_regressor(s)
-        if kind == "lightgbm":
-            m.fit(x, resid, categorical_feature=["borough_code"])
-        else:
-            m.fit(x.fillna(-1), resid)
+        m = make_regressor(s)
+        m.fit(x, y, categorical_feature=["borough_code"])
         models.append(m)
-    return kind, models
+    return models
 
 
-def predict_bag(kind: str, models, x: pd.DataFrame) -> np.ndarray:
-    xx = x if kind == "lightgbm" else x.fillna(-1)
-    return np.mean([m.predict(xx) for m in models], axis=0)
+def predict_bag(models, x: pd.DataFrame) -> np.ndarray:
+    return np.mean([m.predict(x) for m in models], axis=0)
 
 
 def metrics(y, p):
@@ -115,23 +103,23 @@ def main() -> int:
     xtr, xte = add_features(tr, borough_cats), add_features(te, borough_cats)
     ytr, yte = tr["drive_s"].to_numpy(), te["drive_s"].to_numpy()
 
+    # Kolesar is a comparison baseline only; the model below does not use it.
     kol = fit_kolesar(xtr["crow_km"], ytr)
-    prior_tr = np.clip(kol.predict(xtr["crow_km"]), *DRIVE_CLIP_S)
-    prior_te = np.clip(kol.predict(xte["crow_km"]), *DRIVE_CLIP_S)
-    kind, models = fit_bag(xtr, ytr - prior_tr)
-    bag_te = np.clip(prior_te + predict_bag(kind, models, xte), *DRIVE_CLIP_S)
+    kol_te = np.clip(kol.predict(xte["crow_km"]), *DRIVE_CLIP_S)
+    models = fit_bag(xtr, ytr)
+    gbdt_te = np.clip(predict_bag(models, xte), *DRIVE_CLIP_S)
 
     results = {
         "median": metrics(yte, np.full_like(yte, np.median(ytr))),
         "crow@32kph": metrics(yte, np.clip(xte["crow_km"].to_numpy() / 32.0 * 3600, *DRIVE_CLIP_S)),
-        "kolesar": metrics(yte, prior_te),
-        f"prior+bag({kind} x{len(SEEDS)})": metrics(yte, bag_te),
+        "kolesar": metrics(yte, kol_te),
+        f"lightgbm(x{len(SEEDS)} seeds)": metrics(yte, gbdt_te),
     }
     # Same models, non-busy subset (cleaner "own-ground" trips)
     nb = (xte["busy_flag"] == 0).to_numpy()
     results_nonbusy = {
-        "kolesar": metrics(yte[nb], prior_te[nb]),
-        "prior+bag": metrics(yte[nb], bag_te[nb]),
+        "kolesar": metrics(yte[nb], kol_te[nb]),
+        "lightgbm": metrics(yte[nb], gbdt_te[nb]),
         "median": metrics(yte[nb], np.full(nb.sum(), np.median(ytr))),
     }
 
@@ -143,12 +131,12 @@ def main() -> int:
     print("Kolesar (km,s):", {k: round(v, 3) for k, v in kol.to_dict().items()})
 
     payload = {
-        "kind": kind,
+        "kind": "lightgbm",
         "models": models,
         "features": FEATURES,
         "categorical": ["borough_code"],
         "borough_categories": borough_cats,
-        "kolesar_params": kol.to_dict(),
+        "kolesar_baseline_params": kol.to_dict(),
         "target": "drive_s = travel_seconds - turnout_s, clipped",
         "turnout_s": DEFAULT_TURNOUT_S,
         "drive_clip_s": list(DRIVE_CLIP_S),

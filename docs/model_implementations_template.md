@@ -4,7 +4,7 @@ Living catalog of **major model work** on EMV Route Optimization, plus a
 blank form to copy for future changes.
 
 **Project frame (CSEF/ISEF):** London Fire Brigade station placement with a
-street-characteristic travel-time model (Kolesar prior + LightGBM residual bag-of-4),
+street-characteristic travel-time model (gradient-boosted decision trees, LightGBM),
 scored on held-out 2025 LFB calls. London entries are **primary**. NYC/FDNY entries
 below are **legacy scaffolding**. Patrol is **out of the main story**.
 
@@ -151,17 +151,17 @@ Do **not** compare route-ETA R² (~0.96) to CAD hybrid R² (~0.42) as if they we
 
 ---
 
-### [LD-07] LFB driving-time model (Kolesar + LightGBM bag4, no station IDs)
+### [LD-07] LFB driving-time model (LightGBM, no station IDs)
 - **Date:** 2026-10-04
 - **Status:** active (crow/context features); full street attrs **planned**
 - **Family:** LFB travel-time
 - **Label / target:** approx drive = attendance − DEFAULT_TURNOUT_S (60 s)
 - **Holdout:** train 2024 (2023 when present), test 2025
 - **Features:** crow_km, hour/dow/month, rush/night, busy_flag, borough (label); **no station IDs**
-- **Model / algorithm:** residual LightGBM (or HGB) bag-of-4 on Kolesar prior
+- **Model / algorithm:** LightGBM (L1) predicting drive time directly, 4 seeds averaged; no Kolesar prior (changed 2026-10-04)
 - **Train script:** `scripts/train_travel_time_lfb.py` → `data/processed/models/travel_time_lfb.joblib`
-- **Baselines:** median, crow@32kph, Kolesar, Kolesar+bag4 (**EXISTS**); road / linear / NN **planned**
-- **Headline metrics:** 2025 MAE ≈ **78.4 s** (bag) vs Kolesar 81.7 s / median 106.5 s
+- **Baselines:** median, crow@32kph, Kolesar (**EXISTS**); road / linear / NN **planned**
+- **Headline metrics:** 2025 MAE ≈ **78.4 s** (LightGBM) vs Kolesar 81.8 s / median 106.5 s
 - **Ablations / interpretability:** ablations and SHAP **planned**
 - **Docs:** `docs/travel_time_training.md`
 
@@ -444,7 +444,7 @@ Do **not** compare route-ETA R² (~0.96) to CAD hybrid R² (~0.42) as if they we
 |---|---|---|---|
 | Build LFB demand/eval extract | Planner CSV [LD-05] | `build_lfb_planner_incidents.py` | exists |
 | Distance→time prior / baseline | Kolesar [LD-01] | `emvro.kolesar` | module exists, London fit planned |
-| Predict driving time (no station IDs) | Kolesar + LightGBM bag4 [LD-07] | — | **planned** |
+| Predict driving time (no station IDs) | LightGBM [LD-07] | `train_travel_time_lfb.py` | exists |
 | KPIs (6 min mean, 10 min > 90 %) | LFB standards [LD-02] | `emvro.lfb_standards` | exists, not yet in planner |
 | Engine unavailability | Busy engines [LD-03] | `emvro.busy_engines`, `busy_flag` | exists |
 | 2014 validation | Closures [LD-04] | `emvro.london_closures_2014` | list exists, experiment planned |

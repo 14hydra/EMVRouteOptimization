@@ -5,8 +5,8 @@ incident** with **no station IDs**, so the same model can score stations that
 do not exist yet. Used by the placement scorer in `docs/firehouse_location.md`.
 
 > **EXISTS** = in the repo today. **PLANNED** = in the plan, not built or run.
-> **`scripts/train_travel_time_lfb.py` EXISTS**: placement-ready (no station IDs), Kolesar prior
-> refit on train + bag-of-4 residual (LightGBM if available, else sklearn HGB), features
+> **`scripts/train_travel_time_lfb.py` EXISTS**: placement-ready (no station IDs), gradient-boosted
+> decision trees (LightGBM) predicting drive time directly, averaged over 4 seeds, features
 > `crow_km` + hour / dow / month / rush / night / `busy_flag` / borough; chronological train
 > **2024** (plus **2023** when ingested), test **2025**; held-out MAE ≈ **78 s** on approximate
 > drive (`attendance − 60 s` turnout prior). Numbers in the Legacy NYC appendix are FDNY.
@@ -28,8 +28,8 @@ do not exist yet. Used by the placement scorer in `docs/firehouse_location.md`.
 | Piece | Choice | Status |
 |---|---|---|
 | Station IDs | **Not features** (avoids memorising stations; allows hypothetical sites) | **EXISTS** (`train_travel_time_lfb.py`) |
-| Prior | **Kolesar** piecewise `T(d)`: `a + b√d` short, `c + e·d` long (`emvro.kolesar`), fit on train `crow_km` → `drive_s` | **EXISTS** (London refit each training run) |
-| Learner | **Residual bag-of-4** on `drive_s − kolesar_prior` (seeds 42–45; LightGBM L1 if importable, else sklearn HGB) | **EXISTS** (`scripts/train_travel_time_lfb.py`); NYC hybrid **EXISTS** (`scripts/train_travel_time_hybrid.py`) |
+| Learner | **LightGBM** (L1 objective) predicting `drive_s` directly; 4 seeds (42–45) averaged; no parametric prior | **EXISTS** (`scripts/train_travel_time_lfb.py`) |
+| Kolesar | Piecewise `T(d)`: `a + b√d` short, `c + e·d` long (`emvro.kolesar`), refit on train `crow_km` → `drive_s` | **EXISTS** as a comparison baseline only, not a model input |
 | Train / test | Train **2024** (+ **2023** when present in the incident file), test **held-out 2025** (chronological) | **EXISTS** |
 | Street features | Width, lanes, A-road / dual-carriageway flags, signals per km, sharp turns, … along origin→destination | **PLANNED** until **OS NGD** (primary; not downloaded) and/or **London drive graph** + route street pipeline (`emvro.route_street_features` is NYC-tuned today) |
 | Context features | `crow_km`, hour, dow, month, rush, night, `busy_flag`, borough (label-encoded area context) | **EXISTS** in LFB trainer |
@@ -52,15 +52,15 @@ the deployed station (`FirstPumpArriving_DeployedFromStation`), which London **d
 | **Kolesar** | `fit_kolesar(crow_km, drive_s)` on train | **EXISTS** |
 | Linear regression | Same features as the ML model, no trees | **PLANNED** |
 | Neural net | Small MLP on same features | **PLANNED** |
-| **Kolesar + bag4** | Proposed placement model | **EXISTS** (~78 s MAE on 2025 approximate drive) |
+| **LightGBM** | Proposed placement model | **EXISTS** (78.4 s MAE on 2025 approximate drive vs Kolesar 81.8 s) |
 
 Report MAE, RMSE, R², and for placement-relevant scoring the share of calls predicted
 within 6 / 10 min versus observed (`lfb_standards.score_first_engine`).
 
 ## Ablations and interpretability (planned)
 
-- Ablations: remove street features / weather / busy / Kolesar prior one at a time. **PLANNED**
-- **SHAP** on the bag-of-4 to show which street characteristics matter. **PLANNED — not run;**
+- Ablations: remove street features / weather / busy one at a time. **PLANNED**
+- **SHAP** on the LightGBM model to show which street characteristics matter. **PLANNED — not run;**
   `shap` is not in `requirements.txt`.
 - Learning curve on training-set size: `scripts/travel_time_learning_curve.py` **EXISTS** (NYC).
 - Honest expectation: in the NYC experiments street features added only ≈0.1 s MAE each
@@ -78,7 +78,7 @@ within 6 / 10 min versus observed (`lfb_standards.score_first_engine`).
 |---|---|
 | `scripts/build_lfb_planner_incidents.py` | Builds planner CSV (coords, attendance, deployed station, busy flag) |
 | `emvro/london_eval.py` | Joins stations → start coords, `crow_km`, `drive_s`; feeds the trainer |
-| `scripts/train_travel_time_lfb.py` | **Primary London trainer** (Kolesar + bag4, placement-safe features) |
+| `scripts/train_travel_time_lfb.py` | **Primary London trainer** (LightGBM, placement-safe features) |
 | `emvro/kolesar.py` | `fit_kolesar(distance_km, travel_s)` on London trips |
 | `scripts/train_travel_time_hybrid.py` | NYC bag4 residual template (full street-feature table) |
 | `scripts/build_osm_graph.py` | Build `london_drive.graphml` (OSM fallback) — graph **PLANNED** |
