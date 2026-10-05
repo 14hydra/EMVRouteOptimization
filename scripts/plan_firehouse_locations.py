@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
 """
-Plan optimal firehouse locations for a city (redesign or replace).
+Plan optimal fire-station locations (London LFB primary): redesign, replace
+or expand.
 
-Uses firetruck graph routing + CAD-calibrated travel times + discrete
-facility location (p-median / coverage).
+Response = predicted drive (crow / kolesar / network scorer) + station turnout,
+judged against LFB first-engine KPIs (mean <= 6 min, > 90 % within 10 min).
+Demand comes from --demand-years, held-out scoring from --eval-years.
 
 Examples:
-  PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo
+  PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo --mode expand --add-stations 2
   PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city nyc --mode redesign --n-houses 48 --no-graph
+      --city london --mode redesign --scorer kolesar --no-graph
   PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city nyc --mode replace --replace 10 --hour 17
+      --city london --mode replace --replace 10 --scorer kolesar --no-graph
+  PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
+      --city london --mode expand --add-stations 3 --use-busy --no-graph
+  # with a street graph (data/raw/london/london_drive.graphml):
+  PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
+      --city london --mode replace --replace 10 --scorer network
 """
 
 from __future__ import annotations
@@ -207,11 +214,12 @@ def _write_figures(result, out_dir: Path, threshold_min: float) -> list[Path]:
     et = [baselines["current_firehouses"]["expected_response_s"] / 60]
     cov = [100 * baselines["current_firehouses"]["coverage_share_within_threshold"]]
     colors = ["#7f8c8d"]
-    if "random_replace" in baselines:
-        labels.append("Random replace")
-        et.append(baselines["random_replace"]["expected_response_s"] / 60)
-        cov.append(100 * baselines["random_replace"]["coverage_share_within_threshold"])
-        colors.append("#95a5a6")
+    for key in ("random_replace", "random_expand"):
+        if key in baselines:
+            labels.append(key.replace("_", " ").capitalize())
+            et.append(baselines[key]["expected_response_s"] / 60)
+            cov.append(100 * baselines[key]["coverage_share_within_threshold"])
+            colors.append("#95a5a6")
     labels.append("Plan")
     et.append(plan["expected_response_s"] / 60)
     cov.append(100 * plan["coverage_share_within_threshold"])
@@ -254,10 +262,13 @@ def _write_figures(result, out_dir: Path, threshold_min: float) -> list[Path]:
         ax.plot(v, c, color="#7f8c8d", lw=2.2, label="Current houses")
     v, c = _ecdf(cells["response_s"].to_numpy(dtype=float), w)
     ax.plot(v, c, color="#c0392b", lw=2.2, label="Plan")
-    ax.axvline(threshold_min, color="#222", ls="--", lw=1, label=f"{threshold_min:.0f} min threshold")
+    for mark, col in ((6, "#2980b9"), (10, "#8e44ad")):
+        ax.axvline(mark, color=col, ls=":", lw=1.2, label=f"LFB {mark} min")
+    if threshold_min not in (6, 10):
+        ax.axvline(threshold_min, color="#222", ls="--", lw=1, label=f"{threshold_min:g} min threshold")
     ax.set_xlabel("Response time (min)")
     ax.set_ylabel("Demand-weighted CDF")
-    ax.set_xlim(0, max(12, threshold_min * 1.8))
+    ax.set_xlim(0, max(14, threshold_min * 1.5))
     ax.set_ylim(0, 1.02)
     ax.legend(loc="lower right")
     ax.set_title("How fast demand is reached")
@@ -358,14 +369,20 @@ def _write_figures(result, out_dir: Path, threshold_min: float) -> list[Path]:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--city", type=str, default="nyc", help=f"City id ({', '.join(list_cities())}) or custom")
-    p.add_argument("--mode", choices=["redesign", "replace"], default="redesign")
+    p.add_argument("--city", type=str, default="london", help=f"City id ({', '.join(list_cities())}) or custom")
+    p.add_argument("--mode", choices=["redesign", "replace", "expand"], default="redesign")
     p.add_argument("--n-houses", type=int, default=None, help="Fleet size for redesign (default=current count)")
     p.add_argument("--replace", type=int, default=10, help="How many houses to relocate in replace mode")
+    p.add_argument("--add-stations", type=int, default=1, help="New stations to open in expand mode")
     p.add_argument("--cell-km", type=float, default=0.9)
     p.add_argument("--demand-candidates", type=int, default=80)
     p.add_argument("--objective", choices=["response_time", "coverage"], default="response_time")
-    p.add_argument("--threshold-min", type=float, default=8.0)
+    p.add_argument("--threshold-min", type=float, default=10.0, help="Cover threshold (LFB: 10)")
+    p.add_argument("--scorer", choices=["crow", "network", "kolesar"], default=None,
+                   help="Drive-time scorer (default: crow with --no-graph, else network)")
+    p.add_argument("--demand-years", type=str, default="2024", help="Comma list of cal_years for demand")
+    p.add_argument("--eval-years", type=str, default="2025", help="Comma list of cal_years for held-out scoring")
+    p.add_argument("--use-busy", action="store_true", help="Blend next-nearest engine by station busy rate")
     p.add_argument("--hour", type=int, default=17)
     p.add_argument("--firehouses", type=Path, default=None)
     p.add_argument("--incidents", type=Path, default=None)
@@ -379,6 +396,12 @@ def main():
     args = p.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    def _years(txt):
+        return [int(x) for x in str(txt).replace(" ", "").split(",") if x]
+
+    demand_years, eval_years = _years(args.demand_years), _years(args.eval_years)
+    scorer = args.scorer or ("crow" if (args.no_graph or args.demo) else "network")
 
     if args.demo:
         city_id = "demo"
@@ -410,14 +433,21 @@ def main():
                 graph=args.graph,
                 hybrid_model=args.hybrid_model,
             )
-        use_graph = not args.no_graph
+        use_graph = (not args.no_graph) and scorer == "network"
         try:
             spec.require_paths(need_graph=use_graph)
         except FileNotFoundError as e:
             p.error(str(e))
         city_id = spec.id
         houses = load_firehouses(spec)
-        incidents = load_incidents(spec, max_rows=args.max_incidents)
+        # LFB planner CSV: load demand + eval years whole; run_firehouse_plan splits
+        # them and caps each split at --max-incidents.
+        is_lfb = spec.meta.get("standards") == "lfb"
+        incidents = load_incidents(
+            spec,
+            max_rows=None if is_lfb else args.max_incidents,
+            years=sorted(set(demand_years + eval_years)) if is_lfb else None,
+        )
         graph_path = spec.graph_path
         if args.n_houses is None and args.mode == "redesign":
             args.n_houses = len(houses)
@@ -430,6 +460,7 @@ def main():
         mode=args.mode,
         n_houses=args.n_houses,
         replace_r=args.replace,
+        add_stations=args.add_stations,
         cell_km=args.cell_km,
         demand_candidates=args.demand_candidates,
         objective=args.objective,
@@ -439,6 +470,10 @@ def main():
         use_graph=use_graph and graph_path is not None,
         max_incident_rows=args.max_incidents,
         seed=args.seed,
+        scorer=scorer,
+        demand_years=demand_years,
+        eval_years=eval_years,
+        use_busy=args.use_busy,
     )
 
     # Write artifacts

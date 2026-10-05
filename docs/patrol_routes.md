@@ -1,5 +1,10 @@
 # Optimal EMV patrol posts and patrol loops
 
+> **OUT OF SCOPE for the main CSEF/ISEF story.** The London Fire Brigade study is about
+> *station placement* scored with a street-aware travel-time model
+> (`docs/firehouse_location.md`). Patrol posts/loops are kept here as a **sandbox** for
+> NYC/FDNY-era experiments only. Do not cite this as a result of the main project.
+
 ## Scope
 
 **Pre-positioning, not dispatch.** The route models (`docs/route_models.md`) answer *"given a

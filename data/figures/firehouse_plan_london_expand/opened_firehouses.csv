@@ -1,0 +1,3 @@
+candidate_id,site_name,layer,lon,lat,is_existing,borough
+102,Demand cell 0,demand_cell,-0.13694106156319216,51.51022653379869,False,
+106,Demand cell 4,demand_cell,-0.10922895521785714,51.51860141576643,False,

@@ -1,0 +1,169 @@
+{
+  "n_firehouses_current": 102,
+  "closed_2014_name_matches_in_current_list": {},
+  "stations_removed_by_name": [],
+  "stations_removed_by_proximity_to_approx_coords": [
+    {
+      "closed": "Belsize",
+      "removed_station": "Kentish Town",
+      "km": 1.5358392926775941
+    },
+    {
+      "closed": "Bow",
+      "removed_station": "Poplar",
+      "km": 1.7276607377932958
+    },
+    {
+      "closed": "Clerkenwell",
+      "removed_station": "Islington",
+      "km": 1.4770187295930066
+    },
+    {
+      "closed": "Downham",
+      "removed_station": "Bromley",
+      "km": 2.1872795754853427
+    },
+    {
+      "closed": "Kingsland",
+      "removed_station": "Homerton",
+      "km": 1.9231276466287508
+    },
+    {
+      "closed": "Knightsbridge",
+      "removed_station": "Chelsea",
+      "km": 1.3349304100770412
+    },
+    {
+      "closed": "Silvertown",
+      "removed_station": "East Greenwich",
+      "km": 1.9178827573727648
+    },
+    {
+      "closed": "Southwark",
+      "removed_station": "Dowgate",
+      "km": 0.8645371633497528
+    },
+    {
+      "closed": "Westminster",
+      "removed_station": "Lambeth",
+      "km": 1.0099039079006347
+    },
+    {
+      "closed": "Woolwich",
+      "removed_station": "Plumstead",
+      "km": 1.7095292781006772
+    }
+  ],
+  "kolesar_fit_2024_non_busy_km_s": {
+    "a": 91.85270496779486,
+    "b": 114.49807567439065,
+    "c": 164.82469775865755,
+    "e": 58.28989890594906,
+    "breakpoint_km": 1.038332055189326
+  },
+  "heldout_2025_drive_mae": {
+    "all_2025": {
+      "n": 48122,
+      "mae_s_median_train": 109.9687668841694,
+      "mae_s_crow_32kph": 115.62482260321308,
+      "mae_s_kolesar": 82.14799440588581,
+      "bias_s_median_train": -58.381260130501644,
+      "bias_s_crow_32kph": -85.21880212930573,
+      "bias_s_kolesar": -20.906233071838113
+    },
+    "non_busy_2025": {
+      "n": 34150,
+      "mae_s_median_train": 87.95710102489019,
+      "mae_s_crow_32kph": 114.04460324485589,
+      "mae_s_kolesar": 74.75466467266665,
+      "bias_s_median_train": -22.40477306002928,
+      "bias_s_crow_32kph": -99.06212455828904,
+      "bias_s_kolesar": -13.429575462264722
+    }
+  },
+  "n_eval_sample": 40000,
+  "turnout_s_assumed": 60.0,
+  "lfb_scores_2025_sample": {
+    "current": {
+      "mean_s": 290.15637612220934,
+      "p90_s": 355.3686793578892,
+      "share_within_6min": 0.913475,
+      "share_within_10min": 0.999725,
+      "meets_avg_6": true,
+      "meets_90pct_10": true,
+      "passes": true
+    },
+    "current_minus_10_nearest": {
+      "mean_s": 300.33924939833963,
+      "p90_s": 367.0421263223815,
+      "share_within_6min": 0.877875,
+      "share_within_10min": 0.999725,
+      "meets_avg_6": true,
+      "meets_90pct_10": true,
+      "passes": true
+    },
+    "restored_plus_10_closed": {
+      "mean_s": 286.4898896181184,
+      "p90_s": 353.96776895980076,
+      "share_within_6min": 0.91725,
+      "share_within_10min": 0.999725,
+      "meets_avg_6": true,
+      "meets_90pct_10": true,
+      "passes": true
+    },
+    "observed_2025": {
+      "mean_s": 338.929725,
+      "p90_s": 518.0,
+      "share_within_6min": 0.64785,
+      "share_within_10min": 0.9429,
+      "meets_avg_6": true,
+      "meets_90pct_10": true,
+      "passes": true
+    }
+  },
+  "delta_mean_s_remove_10_nearest": 10.182873276130294,
+  "delta_mean_s_restore_10_closed": -3.6664865040909262,
+  "closed_station_coords_approx": {
+    "Belsize": [
+      51.5486,
+      -0.165
+    ],
+    "Bow": [
+      51.529,
+      -0.021
+    ],
+    "Clerkenwell": [
+      51.5265,
+      -0.1085
+    ],
+    "Downham": [
+      51.4262,
+      0.013
+    ],
+    "Kingsland": [
+      51.5459,
+      -0.0759
+    ],
+    "Knightsbridge": [
+      51.5018,
+      -0.16
+    ],
+    "Silvertown": [
+      51.503,
+      0.03
+    ],
+    "Southwark": [
+      51.5025,
+      -0.0985
+    ],
+    "Westminster": [
+      51.4975,
+      -0.1325
+    ],
+    "Woolwich": [
+      51.4905,
+      0.064
+    ]
+  },
+  "honesty": "Scaffold on TODAY's network only. Closed-station coords are approximate hand-entered values. Crow-fly Kolesar ignores the road network and real dispatch (nearest-station assumption, no busy/availability). The true 2014 pre/post train test requires pre-2014 LFB incident extracts (and the 2013 station list) that are not yet in this repo."
+}

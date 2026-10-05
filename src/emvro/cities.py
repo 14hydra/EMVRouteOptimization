@@ -1,15 +1,15 @@
 """City registry for multi-city EMV planning.
 
-NYC is fully wired from repo data paths. Other cities need explicit
-``--incidents`` / ``--firehouses`` / ``--graph`` overrides (or matching files
-under ``data/``); ``get_city`` raises a clear error otherwise.
+**Primary study city: London (LFB).** NYC/SF remain as legacy / transfer stubs.
+Other cities need explicit ``--incidents`` / ``--firehouses`` / ``--graph``
+overrides (or matching files under ``data/``); ``get_city`` raises clearly.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import pandas as pd
 
@@ -102,6 +102,7 @@ def _sf_stub(root: Path = ROOT) -> CitySpec:
 
 def _london_spec(root: Path = ROOT) -> CitySpec:
     raw = root / "data" / "raw" / "london"
+    processed = root / "data" / "processed"
     return CitySpec(
         id="london",
         name="London",
@@ -112,11 +113,23 @@ def _london_spec(root: Path = ROOT) -> CitySpec:
             raw / "lfb_incidents_2024_onwards.csv",
         ),
         graph_path=_first_existing(raw / "london_drive.graphml"),
-        hybrid_model_path=None,
+        hybrid_model_path=_first_existing(processed / "models" / "travel_time_lfb.joblib"),
         default_n_houses=None,
         center=(-0.12, 51.50),
-        notes="LFB incidents (BNG→WGS84) + station-ground centroids as firehouses",
-        meta={"demand_lat": "dest_lat", "demand_lon": "dest_lon"},
+        notes=(
+            "PRIMARY study city (LFB). Planner CSV has attendance seconds "
+            "(mobilise→arrive), station_ground, deployed_from, busy_flag, cal_year. "
+            "OSM graph optional until OS NGD / london_drive.graphml is built."
+        ),
+        meta={
+            "demand_lat": "dest_lat",
+            "demand_lon": "dest_lon",
+            "standards": "lfb",
+            "first_engine_avg_min": 6.0,
+            "first_engine_cover_min": 10.0,
+            "demand_years": [2024],  # 2023 when ingested; doc wants 2023–24
+            "eval_years": [2025],
+        },
     )
 
 
@@ -203,8 +216,32 @@ def load_firehouses(spec: CitySpec) -> pd.DataFrame:
     return out
 
 
-def load_incidents(spec: CitySpec, *, max_rows: int | None = 250_000) -> pd.DataFrame:
-    """Load demand points with dest_lat / dest_lon."""
+_LFB_KEEP = (
+    "travel_seconds",
+    "start_lat",
+    "start_lon",
+    "borough",
+    "cal_year",
+    "date_of_call",
+    "hour_of_call",
+    "station_ground",
+    "deployed_from_station",
+    "second_attendance_s",
+    "second_deployed_from",
+    "busy_flag",
+)
+
+
+def load_incidents(
+    spec: CitySpec,
+    *,
+    max_rows: int | None = 250_000,
+    years: Sequence[int] | None = None,
+) -> pd.DataFrame:
+    """Load demand points with dest_lat / dest_lon (+ LFB context when present).
+
+    ``years`` filters on ``cal_year`` when that column exists (London planner CSV).
+    """
     if spec.incidents_path is None:
         raise FileNotFoundError(f"No incidents path for city {spec.id}")
     path = Path(spec.incidents_path)
@@ -212,13 +249,11 @@ def load_incidents(spec: CitySpec, *, max_rows: int | None = 250_000) -> pd.Data
     lon_c = spec.meta.get("demand_lon", "dest_lon")
 
     if path.suffix.lower() == ".parquet":
-        cols = None
         try:
             import pyarrow.parquet as pq
 
             schema_names = set(pq.read_schema(path).names)
-            want = [c for c in (lat_c, lon_c, "travel_seconds", "start_lat", "start_lon", "borough") if c in schema_names]
-            # fall back aliases
+            want = [c for c in (lat_c, lon_c, *_LFB_KEEP) if c in schema_names]
             for a, b in (("dest_lat", "latitude"), ("dest_lon", "longitude")):
                 if a not in schema_names and b in schema_names:
                     want.append(b)
@@ -226,12 +261,30 @@ def load_incidents(spec: CitySpec, *, max_rows: int | None = 250_000) -> pd.Data
         except Exception:  # noqa: BLE001
             df = pd.read_parquet(path)
     else:
-        df = pd.read_csv(path, nrows=max_rows)
+        df = pd.read_csv(path, nrows=None if years else max_rows)
+
+    # Raw LFB extract aliases
+    if "FirstPumpArriving_AttendanceTime" in df.columns and "travel_seconds" not in df.columns:
+        df = df.rename(columns={"FirstPumpArriving_AttendanceTime": "travel_seconds"})
+    if "IncidentStationGround" in df.columns and "station_ground" not in df.columns:
+        df = df.rename(columns={"IncidentStationGround": "station_ground"})
+    if "FirstPumpArriving_DeployedFromStation" in df.columns and "deployed_from_station" not in df.columns:
+        df = df.rename(columns={"FirstPumpArriving_DeployedFromStation": "deployed_from_station"})
+    if "CalYear" in df.columns and "cal_year" not in df.columns:
+        df = df.rename(columns={"CalYear": "cal_year"})
+    if "HourOfCall" in df.columns and "hour_of_call" not in df.columns:
+        df = df.rename(columns={"HourOfCall": "hour_of_call"})
+    if "IncGeo_BoroughName" in df.columns and "borough" not in df.columns:
+        df = df.rename(columns={"IncGeo_BoroughName": "borough"})
 
     if lat_c not in df.columns and "latitude" in df.columns:
         lat_c = "latitude"
     if lon_c not in df.columns and "longitude" in df.columns:
         lon_c = "longitude"
+    if lat_c not in df.columns and "Latitude" in df.columns:
+        lat_c = "Latitude"
+    if lon_c not in df.columns and "Longitude" in df.columns:
+        lon_c = "Longitude"
     if lat_c not in df.columns or lon_c not in df.columns:
         raise ValueError(f"Incidents need {lat_c}/{lon_c} (or lat/lon): {path}")
 
@@ -241,10 +294,17 @@ def load_incidents(spec: CitySpec, *, max_rows: int | None = 250_000) -> pd.Data
             "dest_lon": pd.to_numeric(df[lon_c], errors="coerce"),
         }
     )
-    for c in ("travel_seconds", "start_lat", "start_lon", "borough"):
-        if c in df.columns:
-            out[c] = pd.to_numeric(df[c], errors="coerce") if c != "borough" else df[c]
+    for c in _LFB_KEEP:
+        if c not in df.columns:
+            continue
+        if c in {"borough", "station_ground", "deployed_from_station", "second_deployed_from", "date_of_call"}:
+            out[c] = df[c]
+        else:
+            out[c] = pd.to_numeric(df[c], errors="coerce")
     out = out.dropna(subset=["dest_lat", "dest_lon"])
+    if years is not None and "cal_year" in out.columns:
+        year_set = {int(y) for y in years}
+        out = out[out["cal_year"].isin(year_set)]
     if max_rows is not None and len(out) > max_rows:
         out = out.sample(max_rows, random_state=42)
     return out.reset_index(drop=True)

@@ -1,4 +1,12 @@
-# Fixing missing EMV starting locations
+# Fixing missing EMV starting locations (NYC legacy)
+
+> **NYC / FDNY LEGACY.** This page is about a problem that exists only for **NYC FDNY
+> public CAD**: it has no apparatus start location. **London does not have this problem**:
+> the LFB incident file records `FirstPumpArriving_DeployedFromStation` (and the second
+> pump's), so the start station of each call is known. The remaining London steps are
+> name-matching deployed stations to coordinates in `data/raw/london/london_firehouses.csv`
+> (**PLANNED**) and noting that LFB attendance includes turnout. See `docs/travel_time_training.md`.
+> The first-due inference below is not part of the main CSEF/ISEF study.
 
 ## Scope
 
