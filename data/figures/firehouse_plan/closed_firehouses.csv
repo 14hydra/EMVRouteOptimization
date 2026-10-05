@@ -1,11 +1,11 @@
 candidate_id,site_name,layer,lon,lat,is_existing,borough
-2,Manhattan Borough Command/Battalion 1/Engine 7/Ladder 1,existing_firehouse,-74.0063,40.715339,True,Manhattan
-8,Division 1/Ladder 20,existing_firehouse,-73.996571,40.723026,True,Manhattan
-10,Battalion 6/Ladder 3,existing_firehouse,-73.989443,40.733093,True,Manhattan
-13,Engine 26,existing_firehouse,-73.990376,40.753107,True,Manhattan
-19,Battalion 9/Engine 54/Ladder 4,existing_firehouse,-73.986793,40.76072,True,Manhattan
-47,Marine 1,existing_firehouse,-74.011815,40.740647,True,Manhattan
-48,Battalion 14/Engine 60/Ladder 17,existing_firehouse,-73.922146,40.813163,True,Bronx
-57,Engine 46/Ladder 27,existing_firehouse,-73.90016,40.843919,True,Bronx
-60,Division 7/Engine 48/Ladder 56,existing_firehouse,-73.893992,40.859318,True,Bronx
-113,Engine 277/Ladder 112,existing_firehouse,-73.914659,40.696397,True,Brooklyn
+97,Whitechapel,existing_firehouse,-0.0697138530776269,51.515909446129136,True,London
+54,Leyton,existing_firehouse,-0.0135363328284796,51.56820397095349,True,London
+18,Dockhead,existing_firehouse,-0.071836890918895,51.499284808373034,True,London
+57,Millwall,existing_firehouse,-0.0183771927363832,51.49716572025844,True,London
+64,Old Kent Road,existing_firehouse,-0.0833539683440174,51.48847757401809,True,London
+76,Shadwell,existing_firehouse,-0.0550064035085364,51.51238633696375,True,London
+51,Lambeth,existing_firehouse,-0.1214502982858634,51.49157031566626,True,London
+48,Kensington,existing_firehouse,-0.1939279197320072,51.498998662004254,True,London
+62,North Kensington,existing_firehouse,-0.2106096906208497,51.51997946084072,True,London
+42,Holloway,existing_firehouse,-0.1166032528533525,51.56097507756176,True,London

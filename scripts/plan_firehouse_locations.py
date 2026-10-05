@@ -48,7 +48,28 @@ def _write_map(result, out: Path, threshold_min: float) -> Path:
     opened = result.opened
     candidates = result.candidates
     center = [float(cells["lat"].mean()), float(cells["lon"].mean())]
-    m = folium.Map(location=center, zoom_start=11, tiles="OpenStreetMap")
+    # Never use tiles.openstreetmap.org — OSM's volunteer CDN 403s Folium apps
+    # (osm.wiki/Blocked). Match patrol/visualize_data: Esri default + Carto fallbacks.
+    m = folium.Map(location=center, zoom_start=11, tiles=None)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri &copy; OpenStreetMap contributors",
+        name="Esri streets",
+        show=True,
+    ).add_to(m)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri imagery",
+        name="Esri imagery",
+        show=False,
+    ).add_to(m)
+    folium.TileLayer(
+        tiles="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        attr='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> '
+        '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+        name="Carto light",
+        show=False,
+    ).add_to(m)
 
     # Demand heat
     fg_heat = folium.FeatureGroup(name="Incident demand (heat)", show=True)

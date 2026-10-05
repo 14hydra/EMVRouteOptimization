@@ -1,280 +1,183 @@
 candidate_id,site_name,layer,lon,lat,is_existing,borough
-0,Engine 4/Ladder 15,existing_firehouse,-74.007717,40.703694,True,Manhattan
-1,Engine 6,existing_firehouse,-74.005395,40.709971,True,Manhattan
-2,Manhattan Borough Command/Battalion 1/Engine 7/Ladder 1,existing_firehouse,-74.0063,40.715339,True,Manhattan
-3,Ladder 8,existing_firehouse,-74.00662,40.719574,True,Manhattan
-4,Engine 9/Ladder 6,existing_firehouse,-73.992834,40.715408,True,Manhattan
-5,Battalion 4/Engine 15/Ladder 18,existing_firehouse,-73.983927,40.716439,True,Manhattan
-6,Engine 28/Ladder 11,existing_firehouse,-73.982526,40.721879,True,Manhattan
-7,Engine 5,existing_firehouse,-73.983407,40.731494,True,Manhattan
-8,Division 1/Ladder 20,existing_firehouse,-73.996571,40.723026,True,Manhattan
-9,Engine 33/Ladder 9,existing_firehouse,-73.992526,40.726986,True,Manhattan
-10,Battalion 6/Ladder 3,existing_firehouse,-73.989443,40.733093,True,Manhattan
-11,Squad 18,existing_firehouse,-74.000381,40.734518,True,Manhattan
-12,Engine 34/Ladder 21,existing_firehouse,-73.996471,40.756593,True,Manhattan
-13,Engine 26,existing_firehouse,-73.990376,40.753107,True,Manhattan
-14,Battalion 7/Engine 3/Ladder 12,existing_firehouse,-73.996868,40.741196,True,Manhattan
-15,Engine 1/Ladder 24,existing_firehouse,-73.991188,40.748474,True,Manhattan
-16,Engine 14,existing_firehouse,-73.991035,40.737948,True,Manhattan
-17,Engine 16/Ladder 7,existing_firehouse,-73.97888,40.741676,True,Manhattan
-18,Engine 21,existing_firehouse,-73.974027,40.748642,True,Manhattan
-19,Battalion 9/Engine 54/Ladder 4,existing_firehouse,-73.986793,40.76072,True,Manhattan
-20,Engine 23,existing_firehouse,-73.980368,40.766699,True,Manhattan
-21,Engine 40/Ladder 35,existing_firehouse,-73.984225,40.774562,True,Manhattan
-22,Division 3/Ladder 25,existing_firehouse,-73.979841,40.78223,True,Manhattan
-23,Engine 74,existing_firehouse,-73.974602,40.784697,True,Manhattan
-24,Battalion 8/Engine 8/Ladder 2,existing_firehouse,-73.970805,40.756891,True,Manhattan
-25,Engine 44,existing_firehouse,-73.958154,40.771454,True,Manhattan
-26,Battalion 10/Engine 22/Ladder 13,existing_firehouse,-73.955311,40.778622,True,Manhattan
-27,Engine 58/Ladder 26,existing_firehouse,-73.947333,40.798913,True,Manhattan
-28,Engine 53/Ladder 43,existing_firehouse,-73.946985,40.788923,True,Manhattan
-29,Engine 91,existing_firehouse,-73.940791,40.793843,True,Manhattan
-30,Battalion 12/Engine 35/Ladder 14,existing_firehouse,-73.936522,40.803297,True,Manhattan
-31,Battalion 11/Engine 76/Ladder 22,existing_firehouse,-73.967261,40.796449,True,Manhattan
-32,Engine 47,existing_firehouse,-73.962932,40.804946,True,Manhattan
-33,Engine 59/Ladder 30,existing_firehouse,-73.94245,40.813332,True,Manhattan
-34,Engine 37/Ladder 40,existing_firehouse,-73.9546,40.811921,True,Manhattan
-35,Engine 84/Ladder 34,existing_firehouse,-73.940959,40.835918,True,Manhattan
-36,Engine 95/Ladder 36,existing_firehouse,-73.925154,40.864897,True,Manhattan
-37,Engine 55,existing_firehouse,-73.99576,40.719841,True,Manhattan
-38,Rescue 1,existing_firehouse,-73.996616,40.760727,True,Manhattan
-39,Engine 39/Ladder 16,existing_firehouse,-73.963612,40.767062,True,Manhattan
-40,Battalion 16/Engine 69/Ladder 28,existing_firehouse,-73.941821,40.820847,True,Manhattan
-41,Engine 80/Ladder 23,existing_firehouse,-73.950762,40.821948,True,Manhattan
-42,Battalion 13/Engine 93/Ladder 45,existing_firehouse,-73.931662,40.848722,True,Manhattan
-43,Engine 10/Ladder 10,existing_firehouse,-74.012608,40.709819,True,Manhattan
-44,Engine 65,existing_firehouse,-73.981979,40.754975,True,Manhattan
-45,Battalion 2/Engine 24/Ladder 5,existing_firehouse,-74.003434,40.728041,True,Manhattan
-46,Engine 67,existing_firehouse,-73.937195,40.841279,True,Manhattan
-47,Marine 1,existing_firehouse,-74.011815,40.740647,True,Manhattan
-48,Battalion 14/Engine 60/Ladder 17,existing_firehouse,-73.922146,40.813163,True,Bronx
-49,Squad 41,existing_firehouse,-73.92013,40.817323,True,Bronx
-50,Division 6/Engine 71/Ladder 55,existing_firehouse,-73.915555,40.820292,True,Bronx
-51,Battalion 26/Engine 50/Ladder 19,existing_firehouse,-73.908118,40.82971,True,Bronx
-52,Engine 68/Ladder 49,existing_firehouse,-73.926919,40.836659,True,Bronx
-53,Engine 83/Ladder 29,existing_firehouse,-73.915834,40.805819,True,Bronx
-54,Battalion 3/Engine 94/Ladder 48,existing_firehouse,-73.887778,40.818581,True,Bronx
-55,Engine 42,existing_firehouse,-73.906812,40.846325,True,Bronx
-56,Engine 43/Ladder 59,existing_firehouse,-73.917286,40.854655,True,Bronx
-57,Engine 46/Ladder 27,existing_firehouse,-73.90016,40.843919,True,Bronx
-58,Bronx Borough Command,existing_firehouse,-73.899241,40.846372,True,Bronx
-59,Engine 82/Ladder 31,existing_firehouse,-73.895259,40.828532,True,Bronx
-60,Division 7/Engine 48/Ladder 56,existing_firehouse,-73.893992,40.859318,True,Bronx
-61,Battalion 18/Engine 45/Ladder 58,existing_firehouse,-73.883508,40.841877,True,Bronx
-62,Battalion 27/Engine 79/Ladder 37,existing_firehouse,-73.886581,40.870279,True,Bronx
-63,Engine 96/Ladder 54,existing_firehouse,-73.869357,40.822986,True,Bronx
-64,Engine 90/Ladder 41,existing_firehouse,-73.8668,40.846365,True,Bronx
-65,Battalion 20/Squad 61,existing_firehouse,-73.846393,40.845048,True,Bronx
-66,Engine 97,existing_firehouse,-73.844162,40.859347,True,Bronx
-67,Engine 62/Ladder 32,existing_firehouse,-73.867362,40.876269,True,Bronx
-68,Engine 38/Ladder 51,existing_firehouse,-73.846513,40.877984,True,Bronx
-69,Battalion 15/Engine 63/Ladder 39,existing_firehouse,-73.85531,40.893028,True,Bronx
-70,Engine 66/Ladder 61,existing_firehouse,-73.831197,40.869725,True,Bronx
-71,Engine 89/Ladder 50,existing_firehouse,-73.827088,40.833339,True,Bronx
-72,Engine 72,existing_firehouse,-73.818248,40.821311,True,Bronx
-73,Engine 70/Ladder 53,existing_firehouse,-73.784695,40.845574,True,Bronx
-74,Engine 52/Ladder 52,existing_firehouse,-73.907656,40.892118,True,Bronx
-75,Engine 88/Ladder 38,existing_firehouse,-73.887837,40.851907,True,Bronx
-76,Engine 81/Ladder 46,existing_firehouse,-73.903669,40.876945,True,Bronx
-77,Engine 73/Ladder 42,existing_firehouse,-73.903785,40.815274,True,Bronx
-78,Engine 64/Ladder 47,existing_firehouse,-73.850876,40.832437,True,Bronx
-79,Battalion 17/Engine 92/Ladder 44,existing_firehouse,-73.913625,40.834679,True,Bronx
-80,Rescue 3,existing_firehouse,-73.901507,40.841225,True,Bronx
-81,Battalion 19/Engine 75/Ladder 33,existing_firehouse,-73.904423,40.856228,True,Bronx
-82,Brooklyn Borough Command/Division 11/Battalion 31/Engine 207/Ladder 110,existing_firehouse,-73.982843,40.69545,True,Brooklyn
-83,Engine 226,existing_firehouse,-73.982768,40.68707,True,Brooklyn
-84,Engine 205/Ladder 118,existing_firehouse,-73.992273,40.700029,True,Brooklyn
-85,Engine 224,existing_firehouse,-73.99708,40.693072,True,Brooklyn
-86,Engine 279/Ladder 131,existing_firehouse,-73.999666,40.672118,True,Brooklyn
-87,Battalion 32/Engine 202/Ladder 101,existing_firehouse,-74.006438,40.680386,True,Brooklyn
-88,Engine 228,existing_firehouse,-74.005327,40.651814,True,Brooklyn
-89,Squad 1,existing_firehouse,-73.97667,40.674649,True,Brooklyn
-90,Engine 239,existing_firehouse,-73.987239,40.671782,True,Brooklyn
-91,Engine 220/Ladder 122,existing_firehouse,-73.981452,40.66495,True,Brooklyn
-92,Engine 219/Ladder 105,existing_firehouse,-73.973851,40.681192,True,Brooklyn
-93,Engine 280/Ladder 132,existing_firehouse,-73.961641,40.673473,True,Brooklyn
-94,Battalion 38/Engine 234/Ladder 123,existing_firehouse,-73.933495,40.670443,True,Brooklyn
-95,Engine 227,existing_firehouse,-73.921728,40.674781,True,Brooklyn
-96,Engine 233/Ladder 176,existing_firehouse,-73.911396,40.682712,True,Brooklyn
-97,Engine 217,existing_firehouse,-73.937993,40.692759,True,Brooklyn
-98,Battalion 37/Engine 222,existing_firehouse,-73.924433,40.689591,True,Brooklyn
-99,Engine 214/Ladder 111,existing_firehouse,-73.935771,40.68441,True,Brooklyn
-100,Engine 230,existing_firehouse,-73.947507,40.698066,True,Brooklyn
-101,Battalion 57/Engine 235,existing_firehouse,-73.951098,40.685175,True,Brooklyn
-102,Ladder 102,existing_firehouse,-73.956614,40.695608,True,Brooklyn
-103,Engine 210,existing_firehouse,-73.973006,40.692799,True,Brooklyn
-104,Engine 211/Ladder 119,existing_firehouse,-73.962289,40.701379,True,Brooklyn
-105,Engine 221/Ladder 104,existing_firehouse,-73.961113,40.713175,True,Brooklyn
-106,Battalion 35/Engine 216/Ladder 108,existing_firehouse,-73.95062,40.706236,True,Brooklyn
-107,Engine 238/Ladder 106,existing_firehouse,-73.951144,40.730747,True,Brooklyn
-108,Engine 229/Ladder 146,existing_firehouse,-73.949024,40.718619,True,Brooklyn
-109,Engine 206,existing_firehouse,-73.928159,40.715301,True,Brooklyn
-110,Engine 237,existing_firehouse,-73.931932,40.705312,True,Brooklyn
-111,Engine 218,existing_firehouse,-73.92659,40.698312,True,Brooklyn
-112,Battalion 28/Engine 271/Ladder 124,existing_firehouse,-73.91602,40.70363,True,Brooklyn
-113,Engine 277/Ladder 112,existing_firehouse,-73.914659,40.696397,True,Brooklyn
-114,Squad 252,existing_firehouse,-73.90814,40.688597,True,Brooklyn
-115,Battalion 44/Engine 231/Ladder 120,existing_firehouse,-73.907891,40.67057,True,Brooklyn
-116,Division 15/Engine 283,existing_firehouse,-73.917952,40.660966,True,Brooklyn
-117,Engine 332/Ladder 175,existing_firehouse,-73.892695,40.675471,True,Brooklyn
-118,Engine 290/Ladder 103,existing_firehouse,-73.895447,40.665123,True,Brooklyn
-119,Engine 236,existing_firehouse,-73.872797,40.677748,True,Brooklyn
-120,Battalion 39/Engine 225/Ladder 107,existing_firehouse,-73.865383,40.669446,True,Brooklyn
-121,Engine 310/Ladder 174,existing_firehouse,-73.928888,40.650355,True,Brooklyn
-122,Engine 249/Ladder 113,existing_firehouse,-73.953293,40.660257,True,Brooklyn
-123,Battalion 41/Engine 248,existing_firehouse,-73.949987,40.648746,True,Brooklyn
-124,Engine 281/Ladder 147,existing_firehouse,-73.966669,40.640024,True,Brooklyn
-125,Engine 255/Ladder 157,existing_firehouse,-73.95064,40.636444,True,Brooklyn
-126,Battalion 48/Engine 240,existing_firehouse,-73.975574,40.651175,True,Brooklyn
-127,Engine 282/Ladder 148,existing_firehouse,-73.990752,40.640182,True,Brooklyn
-128,Engine 247,existing_firehouse,-73.997775,40.62802,True,Brooklyn
-129,Engine 241/Ladder 109,existing_firehouse,-74.025161,40.638157,True,Brooklyn
-130,Engine 242,existing_firehouse,-74.02952,40.617389,True,Brooklyn
-131,Engine 284/Ladder 149,existing_firehouse,-74.012537,40.619955,True,Brooklyn
-132,Battalion 42/Engine 243/Ladder 168,existing_firehouse,-74.003495,40.606037,True,Brooklyn
-133,Engine 250,existing_firehouse,-73.97558,40.627757,True,Brooklyn
-134,Engine 330/Ladder 172,existing_firehouse,-73.979153,40.612127,True,Brooklyn
-135,Battalion 33/Engine 276/Ladder 156,existing_firehouse,-73.959131,40.609365,True,Brooklyn
-136,Engine 253,existing_firehouse,-73.988518,40.598957,True,Brooklyn
-137,Engine 318/Ladder 166,existing_firehouse,-73.993011,40.57776,True,Brooklyn
-138,Engine 254/Ladder 153,existing_firehouse,-73.962008,40.598496,True,Brooklyn
-139,Battalion 43/Engine 245/Ladder 161,existing_firehouse,-73.97616,40.576735,True,Brooklyn
-140,Battalion 58/Engine 257/Ladder 170,existing_firehouse,-73.903569,40.646611,True,Brooklyn
-141,Engine 323,existing_firehouse,-73.915859,40.620133,True,Brooklyn
-142,Engine 309/Ladder 159,existing_firehouse,-73.928169,40.615256,True,Brooklyn
-143,Engine 246/Ladder 169,existing_firehouse,-73.959413,40.584275,True,Brooklyn
-144,Engine 321,existing_firehouse,-73.935188,40.602267,True,Brooklyn
-145,Marine Battlion/Marine 6,existing_firehouse,-73.971631,40.705184,True,Brooklyn
-146,Battalion 40/Engine 201/Ladder 114,existing_firehouse,-74.01318,40.645405,True,Brooklyn
-147,Rescue 2,existing_firehouse,-73.918868,40.671045,True,Brooklyn
-148,Engine 258/Ladder 115,existing_firehouse,-73.951755,40.744986,True,Queens
-149,Engine 325/Ladder 163,existing_firehouse,-73.913705,40.745278,True,Queens
-150,Battalion 45/Engine 259/Ladder 128,existing_firehouse,-73.933203,40.736398,True,Queens
-151,Engine 260,existing_firehouse,-73.940085,40.759679,True,Queens
-152,Ladder 116,existing_firehouse,-73.933266,40.755402,True,Queens
-153,Engine 262,existing_firehouse,-73.929232,40.767526,True,Queens
-154,Engine 263/Ladder 117,existing_firehouse,-73.908849,40.768225,True,Queens
-155,Battalion 49/Engine 312,existing_firehouse,-73.910434,40.773444,True,Queens
-156,Engine 307/Ladder 154,existing_firehouse,-73.885639,40.755804,True,Queens
-157,Engine 289/Ladder 138,existing_firehouse,-73.865316,40.74617,True,Queens
-158,Engine 316,existing_firehouse,-73.869022,40.762427,True,Queens
-159,Division 14/Engine 324,existing_firehouse,-73.851944,40.737914,True,Queens
-160,Engine 292/Rescue 4,existing_firehouse,-73.900987,40.740771,True,Queens
-161,Squad 288,existing_firehouse,-73.896235,40.726096,True,Queens
-162,Battalion 46/Engine 287/Ladder 136,existing_firehouse,-73.878888,40.736454,True,Queens
-163,Engine 305/Ladder 151,existing_firehouse,-73.837707,40.718186,True,Queens
-164,Engine 286/Ladder 135,existing_firehouse,-73.886656,40.701217,True,Queens
-165,Engine 319,existing_firehouse,-73.874942,40.712579,True,Queens
-166,Engine 297/Ladder 130,existing_firehouse,-73.848081,40.784923,True,Queens
-167,Engine 295/Ladder 144,existing_firehouse,-73.815949,40.78898,True,Queens
-168,Engine 273/Ladder 129,existing_firehouse,-73.82657,40.759869,True,Queens
-169,Battalion 52/Engine 274,existing_firehouse,-73.812648,40.762498,True,Queens
-170,Engine 320/Ladder 167,existing_firehouse,-73.786997,40.763311,True,Queens
-171,Engine 306,existing_firehouse,-73.769678,40.763944,True,Queens
-172,Engine 315/Ladder 125,existing_firehouse,-73.807759,40.720109,True,Queens
-173,Engine 299/Ladder 152,existing_firehouse,-73.793385,40.738158,True,Queens
-174,Battalion 53/Engine 326/Ladder 160,existing_firehouse,-73.75597,40.747005,True,Queens
-175,Engine 313/Ladder 164,existing_firehouse,-73.742328,40.76677,True,Queens
-176,Engine 251,existing_firehouse,-73.716081,40.744476,True,Queens
-177,Engine 293,existing_firehouse,-73.855934,40.688614,True,Queens
-178,Engine 285/Ladder 142,existing_firehouse,-73.84186,40.682524,True,Queens
-179,Engine 294/Ladder 143,existing_firehouse,-73.846238,40.694829,True,Queens
-180,Division 13/Squad 270,existing_firehouse,-73.825876,40.695297,True,Queens
-181,Battalion 51/Engine 308,existing_firehouse,-73.823361,40.683905,True,Queens
-182,Battalion 50/Engine 298/Ladder 127,existing_firehouse,-73.804199,40.707617,True,Queens
-183,Engine 303/Ladder 126,existing_firehouse,-73.806938,40.693527,True,Queens
-184,Engine 275/Ladder 133,existing_firehouse,-73.781107,40.693448,True,Queens
-185,Engine 301/Ladder 150,existing_firehouse,-73.763078,40.714467,True,Queens
-186,Engine 304/Ladder 162,existing_firehouse,-73.735945,40.716907,True,Queens
-187,Engine 302/Ladder 155,existing_firehouse,-73.795083,40.674054,True,Queens
-188,Battalion 54/Engine 317/Ladder 165,existing_firehouse,-73.755649,40.693122,True,Queens
-189,Engine 311/Ladder 158,existing_firehouse,-73.759838,40.663608,True,Queens
-190,Engine 314,existing_firehouse,-73.740698,40.664034,True,Queens
-191,Engine 331/Ladder 173,existing_firehouse,-73.839515,40.659245,True,Queens
-192,Engine 268/Ladder 137,existing_firehouse,-73.838055,40.580747,True,Queens
-193,Engine 329,existing_firehouse,-73.881526,40.566009,True,Queens
-194,Engine 266,existing_firehouse,-73.816238,40.586283,True,Queens
-195,Engine 291/Ladder 140,existing_firehouse,-73.906674,40.713082,True,Queens
-196,Engine 264/Engine 328/Ladder 134,existing_firehouse,-73.75213,40.604819,True,Queens
-197,Queens Borough Command,existing_firehouse,-73.776297,40.793268,True,Queens
-198,Battalion 47/Engine 265/Ladder 121,existing_firehouse,-73.779164,40.593539,True,Queens
-199,Engine 155/Ladder 78,existing_firehouse,-74.087694,40.637547,True,Staten Island
-200,Battalion 22/Ladder 79,existing_firehouse,-74.122039,40.634384,True,Staten Island
-201,Engine 156,existing_firehouse,-74.116719,40.630985,True,Staten Island
-202,Engine 163/Ladder 83,existing_firehouse,-74.130815,40.615247,True,Staten Island
-203,Engine 153/Ladder 77,existing_firehouse,-74.077692,40.625033,True,Staten Island
-204,Engine 165/Ladder 85,existing_firehouse,-74.123714,40.576077,True,Staten Island
-205,Engine 157/Ladder 80,existing_firehouse,-74.135394,40.636191,True,Staten Island
-206,Engine 158,existing_firehouse,-74.160052,40.635265,True,Staten Island
-207,Engine 166/Ladder 86,existing_firehouse,-74.158172,40.614264,True,Staten Island
-208,Staten Island Borough Command/Squad 8,existing_firehouse,-74.180532,40.59793,True,Staten Island
-209,Battalion 21/Engine 152,existing_firehouse,-74.070475,40.611716,True,Staten Island
-210,Engine 161/Ladder 81,existing_firehouse,-74.069879,40.596763,True,Staten Island
-211,Division 8/Engine 160/Rescue 5,existing_firehouse,-74.089242,40.60732,True,Staten Island
-212,Engine 159,existing_firehouse,-74.100608,40.590714,True,Staten Island
-213,Battalion 23/Engine 162/Ladder 82,existing_firehouse,-74.147405,40.543104,True,Staten Island
-214,Engine 167/Ladder 87,existing_firehouse,-74.175479,40.554191,True,Staten Island
-215,Engine 164/Ladder 84,existing_firehouse,-74.196059,40.535418,True,Staten Island
-216,Engine 151/Ladder 76,existing_firehouse,-74.23895,40.512739,True,Staten Island
-217,Engine 168,existing_firehouse,-74.213083,40.553942,True,Staten Island
-218,Marine 9,existing_firehouse,-74.07243,40.629954,True,Staten Island
-219,Demand cell 0,demand_cell,-73.94602431605563,40.791317656131476,False,
-220,Demand cell 1,demand_cell,-73.93627958126721,40.80066811707989,False,
-221,Demand cell 2,demand_cell,-73.92275085496183,40.80958855725191,False,
-222,Demand cell 3,demand_cell,-73.98293540126382,40.75580356556082,False,
-223,Demand cell 4,demand_cell,-73.94678458445946,40.79948465371621,False,
-224,Demand cell 5,demand_cell,-73.993511664966,40.71924312585034,False,
-225,Demand cell 6,demand_cell,-73.9821119859649,40.71954736315789,False,
-226,Demand cell 7,demand_cell,-73.90987910088495,40.83643191150442,False,
-227,Demand cell 8,demand_cell,-73.94565191470055,40.81070257713249,False,
-228,Demand cell 9,demand_cell,-73.9929240273224,40.75556878506375,False,
-229,Demand cell 10,demand_cell,-73.91111727356747,40.827604343807764,False,
-230,Demand cell 11,demand_cell,-73.92384066480447,40.83687205214152,False,
-231,Demand cell 12,demand_cell,-73.98218663846153,40.746300417307694,False,
-232,Demand cell 13,demand_cell,-73.98283836627907,40.763516042635665,False,
-233,Demand cell 14,demand_cell,-73.99304998039216,40.746315576470586,False,
-234,Demand cell 15,demand_cell,-73.88674842828685,40.84562531673306,False,
-235,Demand cell 16,demand_cell,-73.99363302904564,40.7278158153527,False,
-236,Demand cell 17,demand_cell,-73.89960107096775,40.85578818709677,False,
-237,Demand cell 18,demand_cell,-73.94534364757709,40.819501218061674,False,
-238,Demand cell 19,demand_cell,-73.90987295515694,40.81811706502242,False,
-239,Demand cell 20,demand_cell,-73.98186116591928,40.72758705829597,False,
-240,Demand cell 21,demand_cell,-73.90953315704388,40.664839309468825,False,
-241,Demand cell 22,demand_cell,-73.89884894588235,40.84681974823529,False,
-242,Demand cell 23,demand_cell,-73.98307240430623,40.69206172488038,False,
-243,Demand cell 24,demand_cell,-73.91137477108434,40.85359686987952,False,
-244,Demand cell 25,demand_cell,-73.9114436836983,40.67417336496351,False,
-245,Demand cell 26,demand_cell,-73.97042083414634,40.75585745853659,False,
-246,Demand cell 27,demand_cell,-73.90048007125307,40.82804113267813,False,
-247,Demand cell 28,demand_cell,-73.99328745477386,40.575463763819094,False,
-248,Demand cell 29,demand_cell,-74.00681793654823,40.71032977664974,False,
-249,Demand cell 30,demand_cell,-73.98268700254454,40.737855038167936,False,
-250,Demand cell 31,demand_cell,-73.95842690816326,40.800847979591836,False,
-251,Demand cell 32,demand_cell,-73.9353384117647,40.84676759590793,False,
-252,Demand cell 33,demand_cell,-73.94691238560411,40.78350087917738,False,
-253,Demand cell 34,demand_cell,-73.89987607291667,40.819624971354166,False,
-254,Demand cell 35,demand_cell,-73.89894818062827,40.863423513089,False,
-255,Demand cell 36,demand_cell,-73.9563307763158,40.81093792631579,False,
-256,Demand cell 37,demand_cell,-73.91022088421052,40.84687269736842,False,
-257,Demand cell 38,demand_cell,-73.94591943157894,40.82761256578947,False,
-258,Demand cell 39,demand_cell,-73.94448230526316,40.70135007631579,False,
-259,Demand cell 40,demand_cell,-73.89919125,40.66610605526316,False,
-260,Demand cell 41,demand_cell,-74.0055280079365,40.719269592592596,False,
-261,Demand cell 42,demand_cell,-73.99332421428572,40.737386642857146,False,
-262,Demand cell 43,demand_cell,-73.93478231367293,40.692147155495974,False,
-263,Demand cell 44,demand_cell,-73.88754135945946,40.85424943243243,False,
-264,Demand cell 45,demand_cell,-73.92169979076087,40.819280211956524,False,
-265,Demand cell 46,demand_cell,-73.9233271548913,40.86369164673913,False,
-266,Demand cell 47,demand_cell,-73.92346325,40.69213397802198,False,
-267,Demand cell 48,demand_cell,-73.97044747107438,40.792309793388426,False,
-268,Demand cell 49,demand_cell,-73.99195341971831,40.692613771830985,False,
-269,Demand cell 50,demand_cell,-73.9232866734104,40.67355100867052,False,
-270,Demand cell 51,demand_cell,-73.98123207738095,40.68390741369048,False,
-271,Demand cell 52,demand_cell,-73.92111130746268,40.82732650447761,False,
-272,Demand cell 53,demand_cell,-73.92263452552552,40.66522867867868,False,
-273,Demand cell 54,demand_cell,-73.88949833836858,40.86493119637462,False,
-274,Demand cell 55,demand_cell,-73.93590357186544,40.70070779816514,False,
-275,Demand cell 56,demand_cell,-73.86341777570092,40.881761794392524,False,
-276,Demand cell 57,demand_cell,-73.93710016199377,40.82856484423676,False,
-277,Demand cell 58,demand_cell,-73.80563792429022,40.701951217665616,False,
-278,Demand cell 59,demand_cell,-73.96912490793652,40.76400384761905,False,
+0,Acton,existing_firehouse,-0.2689473763298597,51.50841551179469,True,London
+1,Addington,existing_firehouse,-0.0202822838111048,51.35248802998444,True,London
+2,Barking,existing_firehouse,0.0952316592114211,51.53520751092956,True,London
+3,Barnet,existing_firehouse,-0.185329982046547,51.647526691604824,True,London
+4,Battersea,existing_firehouse,-0.1696638921853716,51.46732051661053,True,London
+5,Beckenham,existing_firehouse,-0.035543445789276,51.412039584256334,True,London
+6,Bethnal Green,existing_firehouse,-0.0476510069201038,51.52853786742732,True,London
+7,Bexley,existing_firehouse,0.1504374137842553,51.45671792935439,True,London
+8,Biggin Hill,existing_firehouse,0.0350513884128323,51.31488019300775,True,London
+9,Brixton,existing_firehouse,-0.1132973017076816,51.464749183729616,True,London
+10,Bromley,existing_firehouse,0.0176108219572189,51.40674066698669,True,London
+11,Chelsea,existing_firehouse,-0.1669285769086095,51.49059638594536,True,London
+12,Chingford,existing_firehouse,-0.0078082274968547,51.62032222768234,True,London
+13,Chiswick,existing_firehouse,-0.2705404684445122,51.49040891753303,True,London
+14,Clapham,existing_firehouse,-0.1380133529481051,51.46532024838871,True,London
+15,Croydon,existing_firehouse,-0.100023460389166,51.372737453850505,True,London
+16,Dagenham,existing_firehouse,0.1473819682493731,51.55507809985688,True,London
+17,Deptford,existing_firehouse,-0.0347164489817561,51.48693830266251,True,London
+18,Dockhead,existing_firehouse,-0.071836890918895,51.499284808373034,True,London
+19,Dowgate,existing_firehouse,-0.0953367163067934,51.51002152499894,True,London
+20,Ealing,existing_firehouse,-0.3200280901470949,51.51178245592578,True,London
+21,East Greenwich,existing_firehouse,0.025654781479838,51.48596556973228,True,London
+22,East Ham,existing_firehouse,0.0544694720592452,51.530993874231555,True,London
+23,Edmonton,existing_firehouse,-0.0636596453534352,51.62383918845148,True,London
+24,Eltham,existing_firehouse,0.0553120544689058,51.44889499952978,True,London
+25,Enfield,existing_firehouse,-0.0479898490432662,51.66068213941153,True,London
+26,Erith,existing_firehouse,0.162582516954072,51.48211221800394,True,London
+27,Euston,existing_firehouse,-0.1354850373031459,51.52705587237654,True,London
+28,Feltham,existing_firehouse,-0.407414748892231,51.4505208123792,True,London
+29,Finchley,existing_firehouse,-0.1794030218832172,51.6010654750867,True,London
+30,Forest Hill,existing_firehouse,-0.0486091769884784,51.438460077613726,True,London
+31,Fulham,existing_firehouse,-0.200431390385799,51.47894604907241,True,London
+32,Greenwich,existing_firehouse,-0.0138682944982206,51.47394774627953,True,London
+33,Hainault,existing_firehouse,0.0839880065370834,51.598258593495835,True,London
+34,Hammersmith,existing_firehouse,-0.2246226769240493,51.49792794061549,True,London
+35,Harold Hill,existing_firehouse,0.2219063976887518,51.60221216560654,True,London
+36,Harrow,existing_firehouse,-0.3438735666124232,51.58858729393772,True,London
+37,Hayes,existing_firehouse,-0.4275737657576776,51.50341604520079,True,London
+38,Heathrow,existing_firehouse,-0.4557537102226251,51.4718541552207,True,London
+39,Hendon,existing_firehouse,-0.2225296127100739,51.58229750004834,True,London
+40,Heston,existing_firehouse,-0.3536034282630854,51.47103086846537,True,London
+41,Hillingdon,existing_firehouse,-0.4675548256973901,51.53263700092853,True,London
+42,Holloway,existing_firehouse,-0.1166032528533525,51.56097507756176,True,London
+43,Homerton,existing_firehouse,-0.0481883816256061,51.54736132257623,True,London
+44,Hornchurch,existing_firehouse,0.2152595982612425,51.56156709163022,True,London
+45,Hornsey,existing_firehouse,-0.1194081530130026,51.58779561285616,True,London
+46,Ilford,existing_firehouse,0.0788468128218116,51.563833341014536,True,London
+47,Islington,existing_firehouse,-0.1005374283200541,51.53882504453033,True,London
+48,Kensington,existing_firehouse,-0.1939279197320072,51.498998662004254,True,London
+49,Kentish Town,existing_firehouse,-0.1429584371181681,51.55030640905293,True,London
+50,Kingston,existing_firehouse,-0.3011210555020691,51.41273220833808,True,London
+51,Lambeth,existing_firehouse,-0.1214502982858634,51.49157031566626,True,London
+52,Lee Green,existing_firehouse,0.0138782870596298,51.45526506488979,True,London
+53,Lewisham,existing_firehouse,-0.0158918155663925,51.4529629888673,True,London
+54,Leyton,existing_firehouse,-0.0135363328284796,51.56820397095349,True,London
+55,Leytonstone,existing_firehouse,0.0117080349329062,51.56419216549635,True,London
+56,Mill Hill,existing_firehouse,-0.2538871869648238,51.60896604797615,True,London
+57,Millwall,existing_firehouse,-0.0183771927363832,51.49716572025844,True,London
+58,Mitcham,existing_firehouse,-0.1700201033383391,51.40077200733793,True,London
+59,New Cross,existing_firehouse,-0.0521802641429302,51.47324259613112,True,London
+60,New Malden,existing_firehouse,-0.2532840460543211,51.40093043320961,True,London
+61,Norbury,existing_firehouse,-0.1190561562161205,51.40354721922087,True,London
+62,North Kensington,existing_firehouse,-0.2106096906208497,51.51997946084072,True,London
+63,Northolt,existing_firehouse,-0.3634339914966086,51.55551569659526,True,London
+64,Old Kent Road,existing_firehouse,-0.0833539683440174,51.48847757401809,True,London
+65,Orpington,existing_firehouse,0.1044885389969418,51.378653878017346,True,London
+66,Paddington,existing_firehouse,-0.1785960392505685,51.52317386841196,True,London
+67,Park Royal,existing_firehouse,-0.2600697323146253,51.5369614350942,True,London
+68,Peckham,existing_firehouse,-0.0799034718342108,51.47402870091678,True,London
+69,Plaistow,existing_firehouse,0.0264074094006936,51.52053811696385,True,London
+70,Plumstead,existing_firehouse,0.0884010295060902,51.48815048888246,True,London
+71,Poplar,existing_firehouse,-0.0173240634205988,51.51363207223494,True,London
+72,Purley,existing_firehouse,-0.1184683579611386,51.33129366318752,True,London
+73,Richmond,existing_firehouse,-0.2873390602860493,51.464651527157216,True,London
+74,Romford,existing_firehouse,0.1785099295651007,51.58519771340967,True,London
+75,Ruislip,existing_firehouse,-0.4207987094204343,51.581299251123475,True,London
+76,Shadwell,existing_firehouse,-0.0550064035085364,51.51238633696375,True,London
+77,Shoreditch,existing_firehouse,-0.0841755655663846,51.52735355269712,True,London
+78,Sidcup,existing_firehouse,0.1029482416435617,51.42494310995924,True,London
+79,Soho,existing_firehouse,-0.1342281039160492,51.51290503055837,True,London
+80,Southall,existing_firehouse,-0.3774661456287024,51.51686854952914,True,London
+81,Southgate,existing_firehouse,-0.1278823524377577,51.62298176637722,True,London
+82,Stanmore,existing_firehouse,-0.2959976712698563,51.59885712909399,True,London
+83,Stoke Newington,existing_firehouse,-0.0747542763718913,51.563205668145294,True,London
+84,Stratford,existing_firehouse,0.0108360932367351,51.54312747457042,True,London
+85,Surbiton,existing_firehouse,-0.2995467897277278,51.38911399099351,True,London
+86,Sutton,existing_firehouse,-0.1970952568209774,51.366999795791074,True,London
+87,Tooting,existing_firehouse,-0.158588545159242,51.434764833216306,True,London
+88,Tottenham,existing_firehouse,-0.0749813599414571,51.59340520078589,True,London
+89,Twickenham,existing_firehouse,-0.34450550816909,51.43381586074533,True,London
+90,Wallington,existing_firehouse,-0.1507110713335737,51.36266545362322,True,London
+91,Walthamstow,existing_firehouse,-0.0203175850429804,51.58758341979703,True,London
+92,Wandsworth,existing_firehouse,-0.213316514746195,51.45435188957088,True,London
+93,Wembley,existing_firehouse,-0.2943607575516272,51.55460993001413,True,London
+94,Wennington,existing_firehouse,0.193349131867188,51.52211541306801,True,London
+95,West Hampstead,existing_firehouse,-0.1922202467431241,51.54781697998146,True,London
+96,West Norwood,existing_firehouse,-0.1058551800240007,51.43483856877116,True,London
+97,Whitechapel,existing_firehouse,-0.0697138530776269,51.515909446129136,True,London
+98,Willesden,existing_firehouse,-0.237789540546121,51.55022687614621,True,London
+99,Wimbledon,existing_firehouse,-0.2027272621861879,51.41899202945456,True,London
+100,Woodford,existing_firehouse,0.0263605627094228,51.6045738281116,True,London
+101,Woodside,existing_firehouse,-0.0704771742592612,51.3929143565415,True,London
+102,Demand cell 0,demand_cell,-0.13728521337868832,51.51704693421991,False,
+103,Demand cell 1,demand_cell,-0.13696456255000555,51.50991248180716,False,
+104,Demand cell 2,demand_cell,-0.1510106219847733,51.51728770598615,False,
+105,Demand cell 3,demand_cell,-0.13717303061820177,51.49069690165237,False,
+106,Demand cell 4,demand_cell,-0.0937657977945825,51.52681351141095,False,
+107,Demand cell 5,demand_cell,-0.12283085934967022,51.51670108718173,False,
+108,Demand cell 6,demand_cell,-0.19450283727962983,51.49168449921179,False,
+109,Demand cell 7,demand_cell,-0.21003403347543897,51.517618160753564,False,
+110,Demand cell 8,demand_cell,-0.13772342586838474,51.52579728185222,False,
+111,Demand cell 9,demand_cell,-0.12364569572422153,51.51001886763555,False,
+112,Demand cell 10,demand_cell,-0.19552271880318542,51.525846256878886,False,
+113,Demand cell 11,demand_cell,-0.06470405740226083,51.51670479191118,False,
+114,Demand cell 12,demand_cell,-0.1681263356581547,51.52529502377062,False,
+115,Demand cell 13,demand_cell,-0.10791692465475854,51.518090087769856,False,
+116,Demand cell 14,demand_cell,-0.12264359477022042,51.52616069559244,False,
+117,Demand cell 15,demand_cell,-0.08009110353570348,51.526527327032426,False,
+118,Demand cell 16,demand_cell,-0.16609891146626746,51.51804673347319,False,
+119,Demand cell 17,demand_cell,-0.19555026127728722,51.517771550817535,False,
+120,Demand cell 18,demand_cell,-0.08005575422948386,51.53552110849354,False,
+121,Demand cell 19,demand_cell,-0.10886315945064072,51.52602204607263,False,
+122,Demand cell 20,demand_cell,-0.18056054975672547,51.52575095803967,False,
+123,Demand cell 21,demand_cell,-0.05137361484726807,51.52707526058819,False,
+124,Demand cell 22,demand_cell,-0.22418727071217126,51.49991239013886,False,
+125,Demand cell 23,demand_cell,-0.20875889108254347,51.526687532090016,False,
+126,Demand cell 24,demand_cell,-0.1380934311354234,51.535681001046925,False,
+127,Demand cell 25,demand_cell,-0.07938675784501088,51.51691869323025,False,
+128,Demand cell 26,demand_cell,-0.050097212808683234,51.54531228347526,False,
+129,Demand cell 27,demand_cell,-0.09320592801970552,51.517764672267184,False,
+130,Demand cell 28,demand_cell,-0.10962737948581067,51.49061977668286,False,
+131,Demand cell 29,demand_cell,-0.18056221614933193,51.51655841441768,False,
+132,Demand cell 30,demand_cell,-0.11045757734567023,51.46302908474384,False,
+133,Demand cell 31,demand_cell,-0.1937664378616529,51.53552021979157,False,
+134,Demand cell 32,demand_cell,-0.19658268939067128,51.48169653765872,False,
+135,Demand cell 33,demand_cell,-0.14909535149473768,51.51006925153614,False,
+136,Demand cell 34,demand_cell,-0.09604419384474443,51.37276699880072,False,
+137,Demand cell 35,demand_cell,-0.0793747758943927,51.49971945608628,False,
+138,Demand cell 36,demand_cell,-0.15064720356140554,51.49103339627651,False,
+139,Demand cell 37,demand_cell,-0.10860114982040957,51.49930547488602,False,
+140,Demand cell 38,demand_cell,-0.021126985853634032,51.51696692503009,False,
+141,Demand cell 39,demand_cell,-0.16650668536833776,51.49024022932845,False,
+142,Demand cell 40,demand_cell,-0.05142327143457353,51.516907177903526,False,
+143,Demand cell 41,demand_cell,-0.09244986786454126,51.508891279622354,False,
+144,Demand cell 42,demand_cell,-0.09344871730345014,51.53568452634379,False,
+145,Demand cell 43,demand_cell,-0.09433086631786976,51.49964841916311,False,
+146,Demand cell 44,demand_cell,-0.08049945821518492,51.490321763092574,False,
+147,Demand cell 45,demand_cell,-0.0799971367005685,51.47393440511725,False,
+148,Demand cell 46,demand_cell,-0.19433252919270141,51.36414512272475,False,
+149,Demand cell 47,demand_cell,-0.20914552871778597,51.49024990968967,False,
+150,Demand cell 48,demand_cell,-0.052041494976794285,51.553553245931354,False,
+151,Demand cell 49,demand_cell,-0.19521293498018694,51.543954949244906,False,
+152,Demand cell 50,demand_cell,-0.0944288409681081,51.490564390771205,False,
+153,Demand cell 51,demand_cell,-0.17964664275593478,51.49032257380634,False,
+154,Demand cell 52,demand_cell,-0.19534587385888624,51.50920049147378,False,
+155,Demand cell 53,demand_cell,-0.12282769634354283,51.471676098650555,False,
+156,Demand cell 54,demand_cell,-0.12162148098151965,51.49134150578216,False,
+157,Demand cell 55,demand_cell,-0.12167550328805876,51.54526450934435,False,
+158,Demand cell 56,demand_cell,-0.13618485105569592,51.49764565715292,False,
+159,Demand cell 57,demand_cell,-0.22284647418452413,51.50841155021015,False,
+160,Demand cell 58,demand_cell,-0.0647260598618717,51.472780385456836,False,
+161,Demand cell 59,demand_cell,-0.09381373240807692,51.472945857344875,False,
+162,Demand cell 60,demand_cell,-0.09468603060077752,51.481236924854024,False,
+163,Demand cell 61,demand_cell,-0.1807573324725618,51.48217908965407,False,
+164,Demand cell 62,demand_cell,-0.2096452230261382,51.509219038648304,False,
+165,Demand cell 63,demand_cell,-0.22428631897343404,51.4911944783037,False,
+166,Demand cell 64,demand_cell,-0.12230268625719867,51.4630373662431,False,
+167,Demand cell 65,demand_cell,-0.021269304624151695,51.52671652193876,False,
+168,Demand cell 66,demand_cell,-0.06503534863516007,51.53498816541433,False,
+169,Demand cell 67,demand_cell,-0.06570963478363943,51.5269508137947,False,
+170,Demand cell 68,demand_cell,-0.16489144873051856,51.49842649243641,False,
+171,Demand cell 69,demand_cell,-0.12243479266979586,51.4813537423516,False,
+172,Demand cell 70,demand_cell,-0.12207573046832715,51.562452441146675,False,
+173,Demand cell 71,demand_cell,-0.08014594823247259,51.50937829948407,False,
+174,Demand cell 72,demand_cell,-0.2684695137219762,51.507941554199924,False,
+175,Demand cell 73,demand_cell,-0.07870899749829917,51.55307674577592,False,
+176,Demand cell 74,demand_cell,-0.16790588881774335,51.463622750659376,False,
+177,Demand cell 75,demand_cell,-0.020856939933429956,51.499897813911744,False,
+178,Demand cell 76,demand_cell,-0.0341207958255836,51.482021624888965,False,
+179,Demand cell 77,demand_cell,-0.10499924478997652,51.372955218560705,False,
+180,Demand cell 78,demand_cell,-0.13822543028653475,51.544137338755895,False,
+181,Demand cell 79,demand_cell,-0.07770705361933396,51.57230725653225,False,

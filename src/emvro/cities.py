@@ -100,17 +100,38 @@ def _sf_stub(root: Path = ROOT) -> CitySpec:
     )
 
 
+def _london_spec(root: Path = ROOT) -> CitySpec:
+    raw = root / "data" / "raw" / "london"
+    return CitySpec(
+        id="london",
+        name="London",
+        bbox=(-0.50, 51.28, 0.35, 51.70),
+        firehouses_path=_first_existing(raw / "london_firehouses.csv"),
+        incidents_path=_first_existing(
+            raw / "lfb_incidents_planner.csv",
+            raw / "lfb_incidents_2024_onwards.csv",
+        ),
+        graph_path=_first_existing(raw / "london_drive.graphml"),
+        hybrid_model_path=None,
+        default_n_houses=None,
+        center=(-0.12, 51.50),
+        notes="LFB incidents (BNG→WGS84) + station-ground centroids as firehouses",
+        meta={"demand_lat": "dest_lat", "demand_lon": "dest_lon"},
+    )
+
+
 CITY_BUILDERS = {
     "nyc": _nyc_spec,
     "new_york": _nyc_spec,
     "new_york_city": _nyc_spec,
     "sf": _sf_stub,
     "san_francisco": _sf_stub,
+    "london": _london_spec,
 }
 
 
 def list_cities() -> list[str]:
-    return sorted({("nyc" if k.startswith("new") else k) for k in ("nyc", "sf")})
+    return sorted({"nyc", "sf", "london"})
 
 
 def get_city(city_id: str, *, root: Path = ROOT) -> CitySpec:
