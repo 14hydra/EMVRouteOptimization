@@ -3,21 +3,18 @@
 Plan optimal fire-station locations (London LFB primary): redesign, replace
 or expand.
 
-Response = predicted drive (crow / kolesar / network scorer) + station turnout,
+Response = predicted drive (kolesar / crow scorer) + station turnout,
 judged against LFB first-engine KPIs (mean <= 6 min, > 90 % within 10 min).
 Demand comes from --demand-years, held-out scoring from --eval-years.
 
 Examples:
   PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo --mode expand --add-stations 2
   PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city london --mode redesign --scorer kolesar --no-graph
+      --city london --mode redesign
   PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city london --mode replace --replace 10 --scorer kolesar --no-graph
+      --city london --mode replace --replace 10
   PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city london --mode expand --add-stations 3 --use-busy --no-graph
-  # with a street graph (data/raw/london/london_drive.graphml):
-  PYTHONPATH=src python scripts/plan_firehouse_locations.py \\
-      --city london --mode replace --replace 10 --scorer network
+      --city london --mode expand --add-stations 3 --use-busy
 """
 
 from __future__ import annotations
@@ -378,20 +375,15 @@ def main():
     p.add_argument("--demand-candidates", type=int, default=80)
     p.add_argument("--objective", choices=["response_time", "coverage"], default="response_time")
     p.add_argument("--threshold-min", type=float, default=10.0, help="Cover threshold (LFB: 10)")
-    p.add_argument("--scorer", choices=["crow", "network", "kolesar"], default=None,
-                   help="Drive-time scorer (default: crow with --no-graph, else network)")
+    p.add_argument("--scorer", choices=["kolesar", "crow"], default="kolesar", help="Drive-time scorer")
     p.add_argument("--demand-years", type=str, default="2024", help="Comma list of cal_years for demand")
     p.add_argument("--eval-years", type=str, default="2025", help="Comma list of cal_years for held-out scoring")
     p.add_argument("--use-busy", action="store_true", help="Blend next-nearest engine by station busy rate")
-    p.add_argument("--hour", type=int, default=17)
     p.add_argument("--firehouses", type=Path, default=None)
     p.add_argument("--incidents", type=Path, default=None)
-    p.add_argument("--graph", type=Path, default=None)
-    p.add_argument("--hybrid-model", type=Path, default=None)
-    p.add_argument("--no-graph", action="store_true", help="Crow-flies surrogate only (fast)")
     p.add_argument("--max-incidents", type=int, default=200_000)
     p.add_argument("--out-dir", type=Path, default=ROOT / "data" / "figures" / "firehouse_plan")
-    p.add_argument("--demo", action="store_true", help="Synthetic city (no NYC files needed)")
+    p.add_argument("--demo", action="store_true", help="Synthetic city (no data files needed)")
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
 
@@ -401,13 +393,11 @@ def main():
         return [int(x) for x in str(txt).replace(" ", "").split(",") if x]
 
     demand_years, eval_years = _years(args.demand_years), _years(args.eval_years)
-    scorer = args.scorer or ("crow" if (args.no_graph or args.demo) else "network")
+    scorer = args.scorer
 
     if args.demo:
         city_id = "demo"
         houses, incidents = demo_inputs(seed=args.seed)
-        graph_path = None
-        use_graph = False
         if args.n_houses is None:
             args.n_houses = max(4, len(houses) // 2) if args.mode == "redesign" else None
         print(f"Demo city: {len(houses)} houses, {len(incidents)} incidents")
@@ -418,8 +408,6 @@ def main():
             spec = custom_city(
                 firehouses=args.firehouses,
                 incidents=args.incidents,
-                graph=args.graph,
-                hybrid_model=args.hybrid_model,
             )
         else:
             try:
@@ -430,12 +418,9 @@ def main():
                 spec,
                 firehouses=args.firehouses,
                 incidents=args.incidents,
-                graph=args.graph,
-                hybrid_model=args.hybrid_model,
             )
-        use_graph = (not args.no_graph) and scorer == "network"
         try:
-            spec.require_paths(need_graph=use_graph)
+            spec.require_paths(need_graph=False)
         except FileNotFoundError as e:
             p.error(str(e))
         city_id = spec.id
@@ -448,7 +433,6 @@ def main():
             max_rows=None if is_lfb else args.max_incidents,
             years=sorted(set(demand_years + eval_years)) if is_lfb else None,
         )
-        graph_path = spec.graph_path
         if args.n_houses is None and args.mode == "redesign":
             args.n_houses = len(houses)
         print(f"City {spec.name}: {len(houses)} firehouses, {len(incidents):,} demand rows")
@@ -465,9 +449,6 @@ def main():
         demand_candidates=args.demand_candidates,
         objective=args.objective,
         threshold_min=args.threshold_min,
-        graph_path=graph_path,
-        hour=args.hour,
-        use_graph=use_graph and graph_path is not None,
         max_incident_rows=args.max_incidents,
         seed=args.seed,
         scorer=scorer,

@@ -1,115 +1,82 @@
 #!/usr/bin/env python3
-"""Download ASI datasets from NYC Open Data into data/raw/.
+"""Download the London data this project uses into data/raw/london/.
 
-Default scope is **firetrucks** (FDNY incidents + firehouses + alarm boxes).
-Pass ``--legacy-ems`` to also refresh EMS CAD / station tables for side comparisons.
+London Datastore (Open Government Licence):
+  - LFB incident records 2018-2023 (xlsx, converted to csv) and 2024 onwards
+  - LFB mobilisation records 2021-2024 and 2025 onwards
+Geofabrik (OpenStreetMap, ODbL):
+  - Greater London extract (.osm.pbf), used to build the drive graph
+
+Existing files are skipped unless --force. Then build the derived tables:
+
+  python scripts/build_lfb_planner_incidents.py
+  python scripts/build_london_firehouses.py
+  python scripts/build_lfb_travel_training.py
+
+Run:  .venv/bin/python scripts/download_datasets.py
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+RAW = ROOT / "data" / "raw" / "london"
 
-from emvro.opendata import DATASETS, download_dataset, download_geojson_dataset  # noqa: E402
+DATASTORE = "https://data.london.gov.uk/download"
+FILES = {
+    "lfb_incidents_2018_2023.xlsx": f"{DATASTORE}/em8xy/f5066d66-c7a3-415f-9629-026fbda61822/"
+    "LFB%20Incident%20data%20from%202018%20-%202023.xlsx",
+    "lfb_incidents_2024_onwards.xlsx": f"{DATASTORE}/em8xy/58m/LFB%20Incident%20data%20from%202024%20onwards.xlsx",
+    "lfb_mobilisations_2021_2024.csv": f"{DATASTORE}/24r65/3ff29fb5-3935-41b2-89f1-38571059237e/"
+    "LFB%20Mobilisation%20data%20from%202021%20-%202024.csv",
+    "lfb_mobilisations_2025.csv": f"{DATASTORE}/24r65/7d5b4e2f-3ddb-48b9-8a4d-bf86bdf6a4ef/"
+    "LFB%20Mobilisation%20data%20from%202025.csv",
+    "greater-london-latest.osm.pbf": "https://download.geofabrik.de/europe/united-kingdom/england/"
+    "greater-london-latest.osm.pbf",
+}
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--out", type=Path, default=ROOT / "data" / "raw")
-    p.add_argument(
-        "--limit",
-        type=int,
-        default=5000,
-        help="Max FDNY incident rows (facility tables download more fully)",
-    )
-    p.add_argument(
-        "--years",
-        type=int,
-        nargs="*",
-        default=[2022, 2023, 2024],
-        help="Incident years to prefer when --start/--end not set",
-    )
-    p.add_argument("--start", type=str, default=None, help="Incident window start ISO")
-    p.add_argument("--end", type=str, default=None, help="Incident window end ISO")
-    p.add_argument(
-        "--incidents-only",
-        action="store_true",
-        help="Only refresh fdny_incidents.csv (skip facilities / alarm boxes).",
-    )
-    p.add_argument(
-        "--alarm-box-limit",
-        type=int,
-        default=15000,
-        help="Max FDNY alarm-box rows for CSL / patrol post candidates",
-    )
-    p.add_argument(
-        "--legacy-ems",
-        action="store_true",
-        help="Also download legacy EMS incident / station / hospital tables",
-    )
-    args = p.parse_args()
+def download(name: str, url: str, force: bool) -> Path:
+    path = RAW / name
+    if path.exists() and not force:
+        print(f"skip  {name} (exists)")
+        return path
+    print(f"get   {name} …", flush=True)
+    tmp = path.with_suffix(path.suffix + ".part")
+    urllib.request.urlretrieve(url, tmp)
+    tmp.rename(path)
+    print(f"      {path.stat().st_size / 1e6:,.0f} MB")
+    return path
 
-    print("Datasets:")
-    for k, meta in DATASETS.items():
-        print(f"  - {k}: {meta['id']} — {meta['description']}")
 
-    if not args.incidents_only:
-        for key in ("fdny_firehouses", "modzcta"):
-            path = download_dataset(key, args.out, limit=5000)
-            print("Wrote", path)
+def xlsx_to_csv(xlsx: Path, force: bool) -> None:
+    import pandas as pd
 
-        boxes = download_dataset("alarm_boxes", args.out, limit=args.alarm_box_limit)
-        print("Wrote", boxes)
+    csv = xlsx.with_suffix(".csv")
+    if csv.exists() and not force:
+        print(f"skip  {csv.name} (exists)")
+        return
+    print(f"conv  {xlsx.name} -> {csv.name} (a few minutes) …", flush=True)
+    pd.read_excel(xlsx, engine="openpyxl").to_csv(csv, index=False)
 
-        cos = download_geojson_dataset("fire_companies", args.out)
-        print("Wrote", cos)
 
-        if args.legacy_ems:
-            for key in ("ems_stations", "hospital_bays"):
-                path = download_dataset(key, args.out, limit=5000)
-                print("Wrote", path)
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--force", action="store_true", help="Re-download / re-convert existing files")
+    args = ap.parse_args()
+    RAW.mkdir(parents=True, exist_ok=True)
 
-        lion_note = args.out / "lion.README.txt"
-        lion_note.write_text(
-            "LION Open Data ID: 2v4z-66xt\n"
-            "Street path features currently use a cached OSMnx drive graph "
-            "(scripts/build_osm_graph.py) with LION as a planned swap-in.\n"
-        )
-        print("Wrote", lion_note)
-
-    try:
-        fdny = download_dataset(
-            "fdny_incidents",
-            args.out,
-            limit=args.limit,
-            years=None if (args.start and args.end) else args.years,
-            start=args.start,
-            end=args.end,
-        )
-    except Exception as exc:  # noqa: BLE001
-        print("Primary FDNY filter failed (%s); downloading without year/date filter…" % exc)
-        fdny = download_dataset("fdny_incidents", args.out, limit=args.limit, years=None)
-    print("Wrote", fdny)
-
-    if args.legacy_ems:
-        try:
-            ems = download_dataset(
-                "ems_incidents",
-                args.out,
-                limit=args.limit,
-                years=None if (args.start and args.end) else args.years,
-                start=args.start,
-                end=args.end,
-            )
-        except Exception as exc:  # noqa: BLE001
-            print("Legacy EMS filter failed (%s); downloading without year/date filter…" % exc)
-            ems = download_dataset("ems_incidents", args.out, limit=args.limit, years=None)
-        print("Wrote", ems)
+    for name, url in FILES.items():
+        path = download(name, url, args.force)
+        if path.suffix == ".xlsx":
+            xlsx_to_csv(path, args.force)
+    print("Done:", RAW)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

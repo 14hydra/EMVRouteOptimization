@@ -1,4 +1,4 @@
-# EMV Route Optimization — London Fire Brigade station placement (CSEF / ISEF)
+# Fire Station Placement — London Fire Brigade (CSEF / ISEF)
 
 **Optimizing London Fire Brigade station placement with a street-characteristic
 travel-time model** (gradient-boosted decision trees, LightGBM),
@@ -22,8 +22,7 @@ rank candidate station layouts differently from distance-only or Kolesar-only
 placement, and the street-aware layout will do better on held-out calls
 (mean first-engine attendance and share of calls within 10 min).
 
-**Not our claim:** that we have beaten LFB's real operational planning, or that
-public data alone recovers the true turnout/drive split (see
+**Not our claim:** that we have beaten LFB's real operational planning (see
 [Limits](#limits-and-honesty)).
 
 ## Standards we score against
@@ -45,22 +44,19 @@ A candidate placement is scored with
 attendance  =  predicted driving time (station → incident)  +  that station's recorded turnout
 ```
 
-- The **public LFB incident CSV only has attendance** (`FirstPumpArriving_AttendanceTime`,
-  mobilise → arrive). Turnout and drive are not separable there.
-- When LFB **mobilisation** records are available we split turnout from drive and learn
-  per-station turnout. Until then, `DEFAULT_TURNOUT_S` (60 s) is a fallback prior for
-  hypothetical sites — a stated assumption, not a measurement.
+LFB mobilisation records give driving time (`TravelTimeSeconds`) and turnout
+(`TurnoutTimeSeconds`) separately, so the travel-time model is trained on driving time
+alone. The planner still uses `DEFAULT_TURNOUT_S` (60 s) for hypothetical sites.
 
 ## Three models
 
 | # | Model | Role | Status |
 |---|---|---|---|
-| 1 | **Travel-time LightGBM, no station IDs** — gradient-boosted trees, 4-seed average | Predict driving time to any point from any site | Kolesar **EXISTS**; `scripts/train_travel_time_lfb.py` **EXISTS** (crow/context features; full street attrs **PLANNED**) |
-| 2 | **Route model** with learned segment speeds | Dijkstra under learned EMV edge speeds; FOI GPS when available | API scaffold **EXISTS** (`segment_speeds.py`); London graph + FOI **PLANNED** |
-| 3 | **Placement on a directed street graph** | redesign / replace / expand station sets | All three modes **EXISTS**; London OSM/OS NGD graph **PLANNED** |
+| 1 | **Travel-time LightGBM, no station IDs** — gradient-boosted trees, 4-seed average | Predict driving time to any point from any site | **EXISTS** (`scripts/train_travel_time_lfb.py`): real station origins, shortest legal road distance; 2025 MAE 64.2 s. Street characteristics **PLANNED** |
+| 2 | **Route model** with learned segment speeds | Dijkstra under learned edge speeds; FOI GPS when available | Shortest-distance routing on the directed London graph **EXISTS** (`emvro.road_distance`); learned speeds scaffold **EXISTS** (`segment_speeds.py`); FOI **PLANNED** |
+| 3 | **Placement** | redesign / replace / expand station sets | All three modes **EXISTS** (Kolesar / crow scorers); scoring with model 1 **PLANNED** |
 
 Details: [`docs/travel_time_training.md`](docs/travel_time_training.md),
-[`docs/route_models.md`](docs/route_models.md),
 [`docs/firehouse_location.md`](docs/firehouse_location.md).
 
 ## Validation plan
@@ -68,76 +64,86 @@ Details: [`docs/travel_time_training.md`](docs/travel_time_training.md),
 1. **2014 ten-station closures** — on 9 Jan 2014 LFB closed Belsize, Bow, Clerkenwell,
    Downham, Kingsland, Knightsbridge, Silvertown, Southwark, Westminster, Woolwich.
    Counterfactual + ranking scripts **EXIST** on today's network with approximate
-   closed-station coords; the true pre-2014 train → post-2014 test needs older LFB
-   extracts (**PLANNED** ingest).
+   closed-station coords; the true pre-2014 train → post-2014 test needs the 2009–2017
+   LFB extracts (**PLANNED** ingest).
 2. **Leave-one-firehouse-out** — hide one station's calls and predict its area from the rest. **PLANNED**
-3. **Multi-scorer** — score layouts under Kolesar / network / ML; planner supports
-   `--scorer crow|kolesar|network` today (**EXISTS**); full cross-table comparison script **PLANNED**
+3. **Multi-scorer** — score layouts under Kolesar / crow / ML; planner supports
+   `--scorer kolesar|crow` today (**EXISTS**); full cross-table comparison script **PLANNED**
 
-Temporal split: demand from **2023–24**, evaluation on held-out **2025**.
-The repo currently has LFB data from 2024 onward only, so demand is **2024-only until
-2023 is ingested**. The planner enforces `--demand-years` / `--eval-years` when
-`cal_year` is present.
+Temporal split: the travel-time model trains on **2021–2024** and tests on **2025**.
+The planner takes demand and evaluation years from `--demand-years` / `--eval-years`.
 
 ## Datasets
 
+All raw files live in `data/raw/london/` (not in git). `scripts/download_datasets.py`
+fetches them; see [`docs/datasets.md`](docs/datasets.md).
+
 | Role | Source | Status |
 |---|---|---|
-| Incidents, attendance, deployed station, 2nd pump | **LFB incident records** (London Datastore). `data/raw/london/lfb_incidents_2024_onwards.csv` (+ xlsx) | **EXISTS** (2024 → 2026 partial); 2023 and earlier **PLANNED** |
-| Planner extract | `scripts/build_lfb_planner_incidents.py` → `data/raw/london/lfb_incidents_planner.csv` (lat/lon from BNG, `travel_seconds` = attendance, `busy_flag`) | **EXISTS** (~129k rows) |
-| Station list | `data/raw/london/london_firehouses.csv` (real station buildings from OpenStreetMap; `scripts/build_london_firehouses.py`) | **EXISTS** |
-| Street network (primary goal) | **Ordnance Survey NGD** (road links with width, speed limit, class, directionality) | **PLANNED** — not downloaded, no loader yet |
-| Street network (fallback) | **OpenStreetMap** via OSMnx (`scripts/build_osm_graph.py`, `emvro.street_features`) | Tooling **EXISTS**; London graph (`london_drive.graphml`) not built yet |
-| Weather | Open-Meteo archive hourly (`emvro.weather`) | Tooling **EXISTS** (cached for NYC); London pull **PLANNED** |
+| Incidents (location, station ground, attendance) | **LFB incident records** 2018–2023 and 2024 onwards (London Datastore) | **EXISTS** |
+| Engine trips (deployed-from station, turnout, driving time) | **LFB mobilisation records** 2021–2024 and 2025 onwards (London Datastore) | **EXISTS** |
+| Station locations | OpenStreetMap fire stations, name-matched to LFB (`scripts/build_london_firehouses.py`) | **EXISTS** |
+| Street network | OpenStreetMap, Geofabrik Greater London extract → directed drive graph (`emvro.road_distance`) | **EXISTS** |
+| Street network (detail) | **Ordnance Survey NGD** (width, speed limit, class) | **PLANNED** |
 | 2014 closures | Hard-coded list in `emvro.london_closures_2014` | **EXISTS** |
 
-## Code that exists for the London study
+## Code
 
 | Piece | Path |
 |---|---|
-| City registry (`london`, `nyc`, `sf`) | `src/emvro/cities.py` |
-| Firehouse planner (redesign, replace, expand) | `src/emvro/firehouse_location.py`, `scripts/plan_firehouse_locations.py` |
+| London data download | `scripts/download_datasets.py` |
+| Station locations (OSM) | `scripts/build_london_firehouses.py` |
+| Engine-trip training set (real origin, road distance) | `scripts/build_lfb_travel_training.py` |
+| Shortest legal road distance (one-way streets respected) | `src/emvro/road_distance.py` |
+| LightGBM travel-time trainer | `scripts/train_travel_time_lfb.py` |
 | Kolesar piecewise `T(d)` (fit + predict) | `src/emvro/kolesar.py` |
+| LFB planner CSV builder (with `busy_flag`) | `scripts/build_lfb_planner_incidents.py` |
+| Firehouse planner (redesign, replace, expand) | `src/emvro/firehouse_location.py`, `src/emvro/facility.py`, `scripts/plan_firehouse_locations.py` |
 | LFB 6 / 10-min standards scoring, turnout + drive | `src/emvro/lfb_standards.py` |
 | Busy-engine rates (`deployed ≠ ground`) | `src/emvro/busy_engines.py` |
-| 2014 closure list + fuzzy name matching | `src/emvro/london_closures_2014.py` |
-| LFB planner CSV builder (with `busy_flag`) | `scripts/build_lfb_planner_incidents.py` |
-| Placement-ready LFB travel-time trainer | `scripts/train_travel_time_lfb.py` |
-| 2014 closure counterfactual + station ranking | `scripts/validate_london_2014_closures.py`, `scripts/rank_closed_stations_2014.py` |
+| 2014 closure list + counterfactual + ranking | `src/emvro/london_closures_2014.py`, `scripts/validate_london_2014_closures.py`, `scripts/rank_closed_stations_2014.py` |
 | Segment-speed route scaffold | `src/emvro/segment_speeds.py`, `scripts/fit_segment_speeds.py` |
 | Incident density map | `scripts/visualize_data.py` |
+| Street features along each route | `src/emvro/route_features.py` |
+| Initial data analysis + street feature impact | `scripts/analyze_london.py` → `data/figures/london_eda/` |
 
-Still **PLANNED**: OS NGD download, London OSM graph, full street-feature LFB model,
-SHAP/ablations, leave-one-firehouse-out CV, mobilisation turnout split, pre-2014 LFB ingest.
+Still **PLANNED**: street characteristics in the main trainer (measured in `docs/london_eda.md`), OS NGD download,
+SHAP/ablations, leave-one-firehouse-out CV, pre-2014 LFB ingest, planner scoring with
+the LightGBM model.
 
-## Quick start (London first)
+## Quick start
 
 ```bash
-cd EMVRouteOptimization
+cd FireStationPlacement
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+brew install libomp            # macOS: LightGBM needs it
 
-# 1. Put the LFB incident file at data/raw/london/lfb_incidents_2024_onwards.csv
-#    (or LFB_Incident_data_from_2024_onwards.xlsx from the London Datastore).
+# 1. Download LFB incidents + mobilisations and the London OSM extract (~600 MB)
+python scripts/download_datasets.py
 
-# 2. Build the planner extract (BNG -> WGS84, attendance, busy_flag)
+# 2. Derived tables
 PYTHONPATH=src python scripts/build_lfb_planner_incidents.py
+python scripts/build_london_firehouses.py
+python scripts/build_lfb_travel_training.py      # builds the road graph on first run
 
-# 3. Incident density map -> data/figures/london_incident_density.html
+# 3. Travel-time model
+python scripts/train_travel_time_lfb.py
+
+# 4. Incident density map -> data/figures/london_incident_density.html
 PYTHONPATH=src python scripts/visualize_data.py
 
-# 4. Placement planner on London (Kolesar crow TT; no London graph yet)
-PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode redesign --scorer kolesar --no-graph \
-  --demand-years 2024 --eval-years 2025
-PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode replace --replace 10 --scorer kolesar --no-graph
-PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode expand --add-stations 2 --scorer kolesar --no-graph
+# 4b. Initial analysis + street feature impact -> data/figures/london_eda/ (~15 min)
+python scripts/analyze_london.py
 
-# 5. Placement-ready travel-time model + 2014 closure scaffolds
-PYTHONPATH=src python scripts/train_travel_time_lfb.py
+# 5. Placement planner
+PYTHONPATH=src python scripts/plan_firehouse_locations.py \
+  --city london --mode redesign --demand-years 2024 --eval-years 2025
+PYTHONPATH=src python scripts/plan_firehouse_locations.py --city london --mode replace --replace 10
+PYTHONPATH=src python scripts/plan_firehouse_locations.py --city london --mode expand --add-stations 2
+
+# 6. 2014 closure scaffolds
 PYTHONPATH=src python scripts/validate_london_2014_closures.py
 PYTHONPATH=src python scripts/rank_closed_stations_2014.py
 
@@ -145,89 +151,29 @@ PYTHONPATH=src python scripts/rank_closed_stations_2014.py
 PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo
 ```
 
-```python
-# Kolesar prior, LFB standards, busy engines, 2014 closures (all importable today)
-from emvro.kolesar import KolesarModel, fit_kolesar
-from emvro.lfb_standards import score_first_engine, attendance_seconds
-from emvro.busy_engines import estimate_busy_rates
-from emvro.london_closures_2014 import CLOSED_2014, flag_closed
-```
-
-Defaults: `--city london`, `--threshold-min 10`, LFB `score_first_engine` in the
-summary, drive + turnout attendance scoring, `--demand-years` / `--eval-years` when
-`cal_year` is present. Modelled cover rates are optimistic vs observed attendance
-(nearest engine always free unless `--use-busy`).
+Defaults: `--city london`, `--scorer kolesar`, `--threshold-min 10`, LFB
+`score_first_engine` in the summary, drive + turnout attendance scoring. Modelled cover
+rates are optimistic vs observed attendance (nearest engine always free unless `--use-busy`).
 
 ## Docs
 
 | Doc | Content |
 |---|---|
+| [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) | Research plan, prior work, validation, references |
+| [`docs/travel_time_training.md`](docs/travel_time_training.md) | LFB driving-time model; trip origin; road distance; baselines |
 | [`docs/firehouse_location.md`](docs/firehouse_location.md) | Placement: modes, KPIs, scorers, closures, busy engines |
-| [`docs/travel_time_training.md`](docs/travel_time_training.md) | LFB driving-time model; baselines; ablations; legacy FDNY appendix |
-| [`docs/route_models.md`](docs/route_models.md) | Route model plan; NYC router demos as scaffolding |
-| [`docs/multi_city_datasets.md`](docs/multi_city_datasets.md) | London primary; NYC / SF secondary |
+| [`docs/datasets.md`](docs/datasets.md) | London data sources and how they are joined |
+| [`docs/london_eda.md`](docs/london_eda.md) | Initial analysis; which street features affect driving time |
 | [`docs/model_implementations_template.md`](docs/model_implementations_template.md) | Catalog of model implementations + blank entry |
-| [`docs/starting_locations.md`](docs/starting_locations.md) | NYC missing-start CAD (legacy); London has known stations |
-| [`docs/patrol_routes.md`](docs/patrol_routes.md) | **Out of scope** sandbox |
-| [`docs/gmaps_control.md`](docs/gmaps_control.md) | Google Maps control (NYC-era) |
 
 ## Limits and honesty
 
-- Public LFB attendance = turnout + drive; we cannot separate them without mobilisation data.
-- Station sites in `london_firehouses.csv` come from OpenStreetMap building footprints, name-matched to LFB stations (8 pinned by hand, see the script).
-- `busy_flag` (first pump deployed from a station other than the incident's ground station)
+- Station sites in `london_firehouses.csv` come from OpenStreetMap building footprints,
+  name-matched to LFB stations (8 pinned by hand, see the script).
+- Engines are assumed to take the shortest-distance legal route; emergency exemptions
+  (contraflow, bus gates) are not modelled.
+- `busy_flag` (engine deployed from a station other than the incident's ground station)
   is a proxy for "home engine unavailable".
 - Candidate sites are discrete; no land cost, staffing, or planning constraints.
-- Street-feature gains over a good distance prior may be small; the NYC experiments saw
-  street features add little to incident-level R². The London claim is about **placement
-  ranking**, and we will report that honestly whichever way it comes out.
-
-## Out of the main story
-
-- **Patrol posts / loops** (`scripts/build_patrol_routes.py`) — sandbox only, see `docs/patrol_routes.md`.
-- **3D ambulance race visualization** (`scripts/build_ambulance_race_3d.py`) — demo only.
-
-## Legacy NYC / FDNY
-
-Everything below is **legacy scaffolding** from the original NYC project. It still runs and
-is where the LightGBM bag-of-4 hybrid and the route-model demos were prototyped; it is not
-the CSEF/ISEF headline.
-
-**Problem.** Public FDNY Fire Incident Dispatch Data (`8m42-w767`) has incident geography
-(borough, ZIP, alarm box) and travel times, but not apparatus GPS at assignment. We
-reconstruct starts by alarm box → first-due engine polygon → firehouse, with a nearest
-firehouse / CSL hybrid fallback and QC flags (see `docs/starting_locations.md`).
-London does not have this problem: LFB records `DeployedFromStation`.
-
-| Role | Source | Open Data ID |
-|------|--------|--------------|
-| Incidents + travel times | FDNY Fire Incident Dispatch Data | `8m42-w767` |
-| Firehouses | FDNY Firehouse Listing | `hc8x-tcnd` |
-| First-due areas | Fire Companies | `bst7-5464` |
-| Incident / CSL geometry | In-Service Alarm Box Locations | `v57i-gtxb` |
-| ZIP geometry | MODZCTA | `pri4-ifjk` |
-| Streets | NYC LION / OSM | `2v4z-66xt` |
-| Weather | Open-Meteo (`data/processed/weather_hourly_nyc.csv`) | — |
-
-```bash
-python scripts/download_datasets.py --limit 5000
-python scripts/build_od_pairs.py --start-mode hybrid
-
-# Travel-time models (FDNY)
-PYTHONPATH=src python scripts/build_osm_graph.py   # once
-PYTHONPATH=src python scripts/build_travel_time_training_set.py
-PYTHONPATH=src python scripts/train_travel_time_model.py --feature-set full
-PYTHONPATH=src python scripts/build_travel_time_network_dataset.py --raw data/raw/big
-PYTHONPATH=src python scripts/train_travel_time_network.py
-PYTHONPATH=src python scripts/train_travel_time_hybrid.py
-
-# NYC firehouse planner
-PYTHONPATH=src python scripts/plan_firehouse_locations.py --city nyc --mode replace --replace 10 --no-graph
-
-# NYC route-model demos (see docs/route_models.md)
-PYTHONPATH=src python scripts/run_route_models.py --origin-lat 40.758 --origin-lon -73.985 \
-  --dest-lat 40.712 --dest-lon -74.006 --hour 17
-
-# Sandbox, out of scope: patrol loops
-PYTHONPATH=src python scripts/build_patrol_routes.py
-```
+- Street-feature gains over a good distance model may be small. The claim is about
+  **placement ranking**, and we will report that honestly whichever way it comes out.

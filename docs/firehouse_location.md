@@ -1,11 +1,7 @@
-# Firehouse location planner (London primary)
+# Firehouse location planner
 
 Plan **where fire stations should sit** so the first engine meets LFB attendance
-standards, and compare **crow / Kolesar / network** drive scorers. NYC/FDNY wiring
-remains legacy scaffolding.
-
-Distinct from patrol posts (`docs/patrol_routes.md`, **out of scope**): this
-relocates or redesigns the **facility network**, not on-road staging.
+standards, and compare drive scorers (**Kolesar / crow**; the LightGBM model is **PLANNED**).
 
 > **EXISTS** = in the repo today. **PLANNED** = in the plan, not built or run.
 
@@ -50,7 +46,7 @@ attendance(station s → incident i) = predicted_drive(s, i) + turnout(s)
 | `replace` | Close `r` / open `r` (`--replace r`) — e.g. `r = 10` mirrors 2014 closures | **EXISTS** |
 | `expand` | Keep all current stations, add `m` new ones (`--add-stations m`) | **EXISTS** |
 
-Candidates (**EXISTS**): existing station-ground centroids plus top demand-cell
+Candidates (**EXISTS**): existing stations plus top demand-cell
 centroids (`--demand-candidates`). **PLANNED**: additional candidates on street-graph
 nodes. Objectives: p-median `response_time` or max-cover `coverage`.
 
@@ -58,13 +54,12 @@ nodes. Objectives: p-median `response_time` or max-cover `coverage`.
 
 | Scorer | Travel time from… | Status |
 |---|---|---|
-| **crow** | Haversine surrogate (identity calibration when `--no-graph`) | **EXISTS** (`--scorer crow`) |
+| **crow** | Haversine surrogate at a flat speed with a 1.3 detour factor | **EXISTS** (`--scorer crow`) |
 | **Kolesar** | Piecewise `T = a + b√d` / `c + e·d` on distance; refit on London trips (`emvro.kolesar`) | **EXISTS** (`--scorer kolesar`) |
-| **Network** | Dijkstra on a directed drive graph (`--scorer network`, `--graph`) | Scorer **EXISTS**; **London graph PLANNED** (OSM tooling exists, `london_drive.graphml` not in repo) |
-| **ML (street-aware)** | LightGBM residual on Kolesar + street features (`docs/travel_time_training.md`) | **PLANNED** |
+| **Road** | Shortest legal route on the directed London drive graph (`emvro.road_distance`) | Routing **EXISTS**; planner scorer **PLANNED** |
+| **ML (street-aware)** | LightGBM travel-time model (`docs/travel_time_training.md`) | Model **EXISTS**; planner scorer **PLANNED** |
 
-Default scorer: **crow** with `--no-graph` or `--demo`, else **network**. OS **NGD**
-as primary London street source is **PLANNED**; OSM is the fallback path.
+Default scorer: **kolesar**.
 
 ## Demand and evaluation split
 
@@ -112,22 +107,17 @@ Defaults: `--city london`, `--threshold-min 10`, year split as above.
 # Planner extract from raw LFB CSV
 PYTHONPATH=src python scripts/build_lfb_planner_incidents.py
 
-# Redesign / replace / expand (Kolesar crow TT; no London graph yet)
+# Redesign / replace / expand (Kolesar scorer)
 PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode redesign --scorer kolesar --no-graph \
-  --demand-years 2024 --eval-years 2025
+  --city london --mode redesign --demand-years 2024 --eval-years 2025
 PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode replace --replace 10 --scorer kolesar --no-graph
+  --city london --mode replace --replace 10
 PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode expand --add-stations 2 --scorer kolesar --no-graph
+  --city london --mode expand --add-stations 2
 
 # Optional busy blend in reported metrics only
 PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode expand --add-stations 3 --use-busy --no-graph
-
-# With a street graph (once data/raw/london/london_drive.graphml exists)
-PYTHONPATH=src python scripts/plan_firehouse_locations.py \
-  --city london --mode replace --replace 10 --scorer network
+  --city london --mode expand --add-stations 3 --use-busy
 
 # Synthetic smoke test
 PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo
@@ -139,7 +129,7 @@ PYTHONPATH=src python scripts/rank_closed_stations_2014.py
 # Custom city
 PYTHONPATH=src python scripts/plan_firehouse_locations.py \
   --city custom --firehouses path/houses.csv --incidents path/incidents.csv \
-  --graph path/drive.graphml --mode redesign --n-houses 20
+  --mode redesign --n-houses 20
 ```
 
 `london` in `emvro.cities` uses `data/raw/london/london_firehouses.csv` and
@@ -167,21 +157,20 @@ PYTHONPATH=src python scripts/plan_firehouse_locations.py \
   observed `travel_seconds` reflects real dispatch (busy engines, cross-border pumps).
   Compare via eval block `observed_attendance` — expect modelled cover to look **better**
   unless `--use-busy` (partial correction, not full dispatch simulation).
-- Station sites are **station-ground centroids**, not surveyed coordinates.
+- Station sites are OpenStreetMap building locations, name-matched to LFB stations.
 - Discrete candidates only; no land cost, staffing, borough politics, or planning rules.
-- No London drive graph in the repo yet; **OS NGD PLANNED**, OSM build path **EXISTS**.
 
 ## Code
 
 | Piece | Path |
 |---|---|
-| City registry (London, NYC, SF stub) | `src/emvro/cities.py` |
+| City registry (London + custom) | `src/emvro/cities.py` |
 | Planner (redesign, replace, expand) | `src/emvro/firehouse_location.py` |
+| Demand grid, p-median / max-cover selection | `src/emvro/facility.py` |
 | Kolesar model | `src/emvro/kolesar.py` |
 | LFB standards + attendance sum | `src/emvro/lfb_standards.py` |
 | Busy-engine rates | `src/emvro/busy_engines.py` |
 | 2014 closures | `src/emvro/london_closures_2014.py` |
 | LFB planner CSV | `scripts/build_lfb_planner_incidents.py` |
 | 2014 validation scaffolds | `scripts/validate_london_2014_closures.py`, `scripts/rank_closed_stations_2014.py` |
-| Generic firetruck routing (NYC-derived) | `src/emvro/routing/firetruck.py` |
 | CLI | `scripts/plan_firehouse_locations.py` |

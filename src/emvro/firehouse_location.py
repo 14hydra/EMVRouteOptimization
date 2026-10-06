@@ -13,11 +13,10 @@ alone understates response and misses the 6/10-minute standards.
 Building blocks:
 
 - travel scorers (``scorer=``): ``kolesar`` (crow distance -> Kolesar
-  piecewise model, refit on LFB trips), ``crow`` (flat-speed surrogate) and
-  ``network`` (firetruck-weighted Dijkstra + affine calibration)
+  piecewise model, refit on LFB trips) and ``crow`` (flat-speed surrogate)
 - turnout: per-station prior (median attendance residual vs. Kolesar drive,
   clipped to [30, 180] s) for existing houses, ``DEFAULT_TURNOUT_S`` for new sites
-- discrete facility location: p-median / max-cover (``patrol.select_posts``)
+- discrete facility location: p-median / max-cover (``facility.select_posts``)
 - optional busy-engine blend (``use_busy``) and demand/eval year split
 
 Modes
@@ -42,125 +41,18 @@ import pandas as pd
 from .busy_engines import estimate_busy_rates, expected_first_arrival
 from .kolesar import KolesarModel, fit_kolesar
 from .lfb_standards import DEFAULT_TURNOUT_S, attendance_seconds, score_first_engine
-from .patrol import (
+from .facility import (
     TravelTimeSurrogate,
     add_demand_cell_candidates,
     build_demand_grid,
-    graph_nearest_nodes,
-    graph_time_matrix,
     haversine_km,
+    objective_value,
     posture_metrics,
     select_posts,
-    synthetic_demo_data,
 )
-from .routing.firetruck import WEIGHT_KEY as FIRETRUCK_WEIGHT, prepare_firetruck_graph
 
-SCORERS = ("network", "kolesar", "crow")
+SCORERS = ("kolesar", "crow")
 MODES = ("redesign", "replace", "expand")
-
-
-@dataclass
-class AffineCalibrator:
-    """Map graph seconds → CAD-like seconds: ``y ≈ a + b * x``."""
-
-    a: float = 0.0
-    b: float = 1.0
-    meta: dict[str, Any] = field(default_factory=dict)
-
-    def transform(self, x: np.ndarray) -> np.ndarray:
-        out = self.a + self.b * np.asarray(x, dtype=float)
-        return np.clip(out, 30.0, 1800.0)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"a": self.a, "b": self.b, **self.meta}
-
-
-def fit_affine_calibrator(
-    graph_s: np.ndarray,
-    observed_s: np.ndarray,
-    *,
-    min_n: int = 40,
-) -> AffineCalibrator:
-    """Fit affine map from firetruck graph times to observed travel seconds."""
-    g = np.asarray(graph_s, dtype=float).ravel()
-    y = np.asarray(observed_s, dtype=float).ravel()
-    ok = np.isfinite(g) & np.isfinite(y) & (g >= 45) & (g <= 1500) & (y >= 45) & (y <= 1200)
-    meta: dict[str, Any] = {"n_pairs": int(ok.sum()), "method": "identity"}
-    if int(ok.sum()) < min_n:
-        meta["reason"] = "too_few_pairs"
-        return AffineCalibrator(a=0.0, b=1.0, meta=meta)
-    # Robust: median ratio for slope, median residual for intercept
-    ratio = np.median(y[ok] / g[ok])
-    if not np.isfinite(ratio) or ratio <= 0.2 or ratio > 3.0:
-        meta["reason"] = "ratio_out_of_band"
-        meta["raw_ratio"] = float(ratio) if np.isfinite(ratio) else None
-        return AffineCalibrator(a=0.0, b=1.0, meta=meta)
-    resid = y[ok] - ratio * g[ok]
-    a = float(np.median(resid))
-    # Keep intercept mild
-    a = float(np.clip(a, -60.0, 120.0))
-    meta.update({"method": "median_ratio_affine", "ratio": float(ratio), "intercept": a})
-    return AffineCalibrator(a=a, b=float(ratio), meta=meta)
-
-
-def calibrate_from_od_sample(
-    G,
-    houses: pd.DataFrame,
-    incidents: pd.DataFrame,
-    *,
-    sample_n: int = 400,
-    seed: int = 42,
-    weight: str = FIRETRUCK_WEIGHT,
-) -> AffineCalibrator:
-    """Sample house→incident graph times vs observed CAD seconds for calibration."""
-    if G is None or "travel_seconds" not in incidents.columns:
-        return AffineCalibrator(meta={"method": "identity", "reason": "no_graph_or_labels"})
-    df = incidents.dropna(subset=["dest_lat", "dest_lon", "travel_seconds"]).copy()
-    if "start_lat" in df.columns and "start_lon" in df.columns:
-        starts = df.dropna(subset=["start_lat", "start_lon"])
-    else:
-        starts = pd.DataFrame()
-    if len(starts) < 30:
-        # Pair random houses to random dests with observed y — weak but usable
-        rng = np.random.default_rng(seed)
-        if len(df) < 30 or len(houses) < 1:
-            return AffineCalibrator(meta={"method": "identity", "reason": "insufficient_od"})
-        take = min(sample_n, len(df))
-        samp = df.sample(take, random_state=seed)
-        hix = rng.integers(0, len(houses), size=take)
-        src = houses.iloc[hix][["lon", "lat"]].reset_index(drop=True)
-        tgt = samp[["dest_lon", "dest_lat"]].rename(columns={"dest_lon": "lon", "dest_lat": "lat"})
-        y = samp["travel_seconds"].to_numpy(dtype=float)
-    else:
-        take = min(sample_n, len(starts))
-        samp = starts.sample(take, random_state=seed)
-        src = samp[["start_lon", "start_lat"]].rename(columns={"start_lon": "lon", "start_lat": "lat"})
-        tgt = samp[["dest_lon", "dest_lat"]].rename(columns={"dest_lon": "lon", "dest_lat": "lat"})
-        y = samp["travel_seconds"].to_numpy(dtype=float)
-
-    try:
-        src_nodes = graph_nearest_nodes(G, src["lon"].to_numpy(), src["lat"].to_numpy())
-        tgt_nodes = graph_nearest_nodes(G, tgt["lon"].to_numpy(), tgt["lat"].to_numpy())
-    except Exception as exc:  # noqa: BLE001
-        return AffineCalibrator(meta={"method": "identity", "reason": f"snap_failed:{exc}"})
-
-    # Per-row Dijkstra would be slow; use unique sources
-    graph_s = np.full(len(src), np.nan)
-    unique_src = {}
-    for i, sn in enumerate(src_nodes):
-        unique_src.setdefault(sn, []).append(i)
-    import networkx as nx
-
-    for sn, idxs in unique_src.items():
-        try:
-            dist = nx.single_source_dijkstra_path_length(G, sn, cutoff=1500, weight=weight)
-        except Exception:  # noqa: BLE001
-            continue
-        for i in idxs:
-            d = dist.get(tgt_nodes[i])
-            if d is not None:
-                graph_s[i] = float(d)
-    return fit_affine_calibrator(graph_s, y)
 
 
 def build_house_candidates(
@@ -182,10 +74,10 @@ def build_house_candidates(
     )
     cand = existing.copy()
     cand.insert(0, "candidate_id", np.arange(len(cand)))
-    # Reuse patrol helper shape: needs post_name/layer/lon/lat
-    patrol_shaped = cand.rename(columns={"site_name": "post_name"})
-    patrol_shaped["is_anchor"] = True
-    enriched = add_demand_cell_candidates(patrol_shaped, cells, top_n=demand_candidates)
+    # add_demand_cell_candidates expects post_name/layer/lon/lat
+    post_shaped = cand.rename(columns={"site_name": "post_name"})
+    post_shaped["is_anchor"] = True
+    enriched = add_demand_cell_candidates(post_shaped, cells, top_n=demand_candidates)
     # Normalize columns for this module
     out = pd.DataFrame(
         {
@@ -206,34 +98,22 @@ def build_travel_matrix(
     candidates: pd.DataFrame,
     cells: pd.DataFrame,
     *,
-    G=None,
     surrogate: TravelTimeSurrogate | None = None,
-    calibrator: AffineCalibrator | None = None,
-    cutoff_s: float | None = 1200.0,
-    max_graph_sources: int | None = None,
-    scorer: str = "network",
+    scorer: str = "kolesar",
     kolesar: KolesarModel | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Candidate × demand **drive** seconds (turnout is added by the caller).
 
     ``scorer``:
-      * ``network`` — surrogate → graph Dijkstra → affine calibration (needs ``G``;
-        falls back to the crow surrogate when no graph is given)
-      * ``kolesar`` — crow-flies km → :class:`KolesarModel` (NYC prior if none given)
-      * ``crow``    — flat-speed surrogate only (graph ignored)
+      * ``kolesar`` — crow-flies km → :class:`KolesarModel` (London default if none given)
+      * ``crow``    — flat-speed surrogate
     """
     if scorer not in SCORERS:
         raise ValueError(f"scorer must be one of {SCORERS}, got {scorer!r}")
     surrogate = surrogate or TravelTimeSurrogate()
-    meta: dict[str, Any] = {
-        "scorer": scorer,
-        "surrogate_speed_kph": surrogate.speed_kph,
-        "graph_used": False,
-        "graph_resolved_share": 0.0,
-        "calibrator": (calibrator or AffineCalibrator()).to_dict(),
-    }
+    meta: dict[str, Any] = {"scorer": scorer, "surrogate_speed_kph": surrogate.speed_kph}
     if scorer == "kolesar":
-        model = kolesar or KolesarModel.nyc_default()
+        model = kolesar or KolesarModel.london_default()
         km = haversine_km(
             candidates["lon"].to_numpy(dtype=float)[:, None],
             candidates["lat"].to_numpy(dtype=float)[:, None],
@@ -242,44 +122,7 @@ def build_travel_matrix(
         )
         meta["kolesar"] = model.to_dict()
         return np.maximum(model.predict(km), 15.0), meta
-
-    T = surrogate.matrix(candidates, cells)
-    if G is None or scorer == "crow":
-        if scorer == "network":
-            meta["scorer_effective"] = "crow"
-            meta["note"] = "no graph supplied; used crow surrogate"
-        if calibrator is not None:
-            T = calibrator.transform(T)
-        return T, meta
-
-    src_df = candidates
-    if max_graph_sources is not None and len(candidates) > max_graph_sources:
-        # Prefer existing houses + top demand layers already in candidates; take all
-        src_df = candidates
-
-    try:
-        src_nodes = graph_nearest_nodes(G, src_df["lon"].to_numpy(), src_df["lat"].to_numpy())
-        tgt_nodes = graph_nearest_nodes(G, cells["lon"].to_numpy(), cells["lat"].to_numpy())
-        Tg, resolved = graph_time_matrix(
-            G,
-            src_nodes,
-            tgt_nodes,
-            weight=FIRETRUCK_WEIGHT,
-            cutoff_s=cutoff_s,
-            fallback=T,
-            progress_every=25,
-        )
-        meta["graph_used"] = True
-        meta["graph_resolved_share"] = float(resolved.mean())
-        meta["weight"] = FIRETRUCK_WEIGHT
-        T = Tg
-    except Exception as exc:  # noqa: BLE001
-        meta["graph_error"] = str(exc)
-
-    if calibrator is not None:
-        T = calibrator.transform(T)
-        meta["calibrator"] = calibrator.to_dict()
-    return T, meta
+    return surrogate.matrix(candidates, cells), meta
 
 
 def plan_redesign(
@@ -317,7 +160,6 @@ def plan_replace(
     Starts from the full existing set; each round swaps one existing site for
     the best unused new candidate. Total fleet size stays ``len(existing_idx)``.
     """
-    from .patrol import _objective_value
 
     existing = [int(i) for i in existing_idx]
     n = len(existing)
@@ -334,7 +176,7 @@ def plan_replace(
             "indices": selected,
             "closed": [],
             "opened": [],
-            "value": _objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s),
+            "value": objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s),
             "response_s": best,
             "n_swaps": 0,
         }
@@ -343,7 +185,7 @@ def plan_replace(
     n_swaps = 0
     closed: list[int] = []
     opened: list[int] = []
-    current = _objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s)
+    current = objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s)
 
     for _ in range(rounds):
         if len(closed) >= r:
@@ -359,7 +201,7 @@ def plan_replace(
         for out_idx in drop_candidates:
             base = [s for s in selected if s != out_idx]
             for in_idx in add_candidates:
-                val = _objective_value(
+                val = objective_value(
                     T, base + [in_idx], weights, objective=objective, threshold_s=threshold_s
                 )
                 gain = current - val
@@ -398,7 +240,6 @@ def random_replace_baseline(
     threshold_s: float = 480.0,
     seed: int = 0,
 ) -> dict[str, Any]:
-    from .patrol import _objective_value
 
     rng = np.random.default_rng(seed)
     existing = [int(i) for i in existing_idx]
@@ -416,7 +257,7 @@ def random_replace_baseline(
         "indices": selected,
         "closed": closed,
         "opened": opened,
-        "value": _objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s),
+        "value": objective_value(T, selected, weights, objective=objective, threshold_s=threshold_s),
         "response_s": best,
         "label": "random_replace",
     }
@@ -467,9 +308,8 @@ def plan_expand(
 
 
 def _expand_value(T, idx, weights, objective, threshold_s) -> float:
-    from .patrol import _objective_value
 
-    return _objective_value(T, idx, weights, objective=objective, threshold_s=threshold_s)
+    return objective_value(T, idx, weights, objective=objective, threshold_s=threshold_s)
 
 
 def random_expand_baseline(
@@ -543,13 +383,13 @@ def fit_scorer_kolesar(
 
     LFB ``travel_seconds`` is attendance (turnout + drive), so ``turnout_s`` is
     subtracted before fitting; the planner adds turnout back per station.
-    Falls back to the NYC prior when too few usable pairs exist.
+    Falls back to the London default curve when too few usable pairs exist.
     """
     pairs = _station_ground_pairs(incidents, houses)
     if pairs is None or len(pairs) < min_pairs:
         return (
-            KolesarModel.nyc_default(),
-            {"source": "nyc_default", "n_pairs": 0 if pairs is None else int(len(pairs))},
+            KolesarModel.london_default(),
+            {"source": "london_default", "n_pairs": 0 if pairs is None else int(len(pairs))},
             pairs,
         )
     fit_df = pairs.sample(max_pairs, random_state=seed) if len(pairs) > max_pairs else pairs
@@ -715,12 +555,9 @@ def run_firehouse_plan(
     demand_candidates: int = 80,
     objective: str = "response_time",
     threshold_min: float = 10.0,
-    graph_path: Path | str | None = None,
-    hour: int = 17,
-    use_graph: bool = True,
     max_incident_rows: int | None = 200_000,
     seed: int = 42,
-    scorer: str = "network",
+    scorer: str = "kolesar",
     turnout_s: float | Mapping[str, float] | None = None,
     demand_years: Sequence[int] | None = None,
     eval_years: Sequence[int] | None = None,
@@ -765,33 +602,16 @@ def run_firehouse_plan(
 
     # --- turnout per candidate ---------------------------------------------
     estimated = None
-    if turnout_s is None and kmeta["source"] != "nyc_default":
+    if turnout_s is None and kmeta["source"] != "london_default":
         estimated = estimate_station_turnout(pairs, kmodel)
     turnout_vec, turnout_meta = resolve_turnout_vector(candidates, turnout_s, estimated)
     print("Turnout:", turnout_meta)
-
-    # --- graph (network scorer only) ---------------------------------------
-    G = None
-    calibrator = AffineCalibrator()
-    if scorer == "network" and use_graph and graph_path is not None and Path(graph_path).exists():
-        print(f"Loading firetruck graph from {graph_path} (hour={hour})…")
-        G = prepare_firetruck_graph(graph_path, hour=hour)
-        print("Calibrating graph times to observed CAD travel…")
-        calib_inc = incidents
-        if "station_ground" in incidents.columns and "travel_seconds" in incidents.columns:
-            # LFB attendance includes turnout; calibrate graph to drive-only seconds.
-            calib_inc = incidents.assign(travel_seconds=incidents["travel_seconds"] - DEFAULT_TURNOUT_S)
-        calibrator = calibrate_from_od_sample(G, houses, calib_inc, seed=seed)
-        print("Calibrator:", calibrator.to_dict())
 
     print(f"Building {scorer} travel matrix ({len(candidates)} sites × {len(cells)} cells)…")
     T, travel_meta = build_travel_matrix(
         candidates,
         cells,
-        G=G,
         surrogate=TravelTimeSurrogate(),
-        calibrator=calibrator,
-        cutoff_s=max(threshold_s * 2.5, 900.0),
         scorer=scorer,
         kolesar=kmodel,
     )
@@ -987,7 +807,7 @@ def _baseline_metrics(A, idx, weights, threshold_s, busy_p, label) -> dict[str, 
 
 def demo_inputs(*, seed: int = 7) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Synthetic houses + incidents for --demo."""
-    incidents, stations, _csl = synthetic_demo_data(seed=seed)
+    incidents, stations = synthetic_demo_data(seed=seed)
     houses = pd.DataFrame(
         {
             "facilityname": stations["facname"].astype(str),
@@ -998,3 +818,49 @@ def demo_inputs(*, seed: int = 7) -> tuple[pd.DataFrame, pd.DataFrame]:
     ).dropna(subset=["lat", "lon"]).reset_index(drop=True)
     houses.insert(0, "house_id", houses.index.astype(int))
     return houses, incidents.reset_index(drop=True)
+
+
+def synthetic_demo_data(
+    *,
+    n_incidents: int = 4000,
+    center: tuple[float, float] = (-0.12, 51.50),
+    seed: int = 7,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fake incidents + stations around central London so --demo runs without data.
+
+    Three demand hotspots plus a diffuse background, enough to show the
+    optimizer moving sites off the stations and toward demand.
+    """
+    rng = np.random.default_rng(seed)
+    lon0, lat0 = center
+    hotspots = [
+        (lon0 + 0.00, lat0 + 0.00, 0.020, 0.45),
+        (lon0 - 0.06, lat0 - 0.04, 0.015, 0.30),
+        (lon0 + 0.07, lat0 + 0.05, 0.018, 0.25),
+    ]
+    rows = []
+    for hx, hy, sd, share in hotspots:
+        n = int(n_incidents * share * 0.8)
+        rows.append(pd.DataFrame({"dest_lon": rng.normal(hx, sd, n), "dest_lat": rng.normal(hy, sd * 0.8, n)}))
+    n_bg = n_incidents - sum(len(r) for r in rows)
+    rows.append(
+        pd.DataFrame(
+            {
+                "dest_lon": rng.uniform(lon0 - 0.12, lon0 + 0.12, n_bg),
+                "dest_lat": rng.uniform(lat0 - 0.09, lat0 + 0.09, n_bg),
+            }
+        )
+    )
+    incidents = pd.concat(rows, ignore_index=True)
+    incidents["travel_seconds"] = rng.uniform(180, 600, len(incidents))
+    incidents["borough"] = "DEMO"
+    n_st = 10
+    stations = pd.DataFrame(
+        {
+            "facname": [f"DEMO Station {i+1}" for i in range(n_st)],
+            "latitude": rng.uniform(lat0 - 0.08, lat0 + 0.08, n_st),
+            "longitude": rng.uniform(lon0 - 0.11, lon0 + 0.11, n_st),
+            "borough": "DEMO",
+        }
+    )
+    return incidents, stations

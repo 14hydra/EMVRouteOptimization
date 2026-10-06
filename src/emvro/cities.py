@@ -1,8 +1,8 @@
-"""City registry for multi-city EMV planning.
+"""City registry for firehouse planning.
 
-**Primary study city: London (LFB).** NYC/SF remain as legacy / transfer stubs.
-Other cities need explicit ``--incidents`` / ``--firehouses`` / ``--graph``
-overrides (or matching files under ``data/``); ``get_city`` raises clearly.
+The study city is London (LFB). Other cities can be planned with
+``custom_city`` / ``--city custom`` and explicit ``--incidents`` /
+``--firehouses`` paths.
 """
 
 from __future__ import annotations
@@ -54,52 +54,6 @@ def _first_existing(*paths: Path) -> Path | None:
     return None
 
 
-def _nyc_spec(root: Path = ROOT) -> CitySpec:
-    raw = root / "data" / "raw"
-    big = raw / "big"
-    processed = root / "data" / "processed"
-    rich = raw / "nyc_drive_rich.graphml"
-    plain = raw / "nyc_drive.graphml"
-    firehouses = _first_existing(big / "fdny_firehouses.csv", raw / "fdny_firehouses.csv")
-    incidents = _first_existing(
-        processed / "travel_time_network.parquet",
-        processed / "od_pairs_inferred_starts.csv",
-    )
-    graph = _first_existing(rich, plain)
-    hybrid = _first_existing(processed / "models" / "travel_time_hybrid.joblib")
-    return CitySpec(
-        id="nyc",
-        name="New York City",
-        bbox=(-74.26, 40.49, -73.70, 40.92),
-        firehouses_path=firehouses,
-        incidents_path=incidents,
-        graph_path=graph,
-        hybrid_model_path=hybrid,
-        default_n_houses=None,  # filled from firehouse count at load time
-        center=(-73.95, 40.75),
-        notes="FDNY firehouses + network/OD demand; firetruck EMV graph",
-        meta={"demand_lat": "dest_lat", "demand_lon": "dest_lon"},
-    )
-
-
-def _sf_stub(root: Path = ROOT) -> CitySpec:
-    raw = root / "data" / "raw"
-    processed = root / "data" / "processed"
-    return CitySpec(
-        id="sf",
-        name="San Francisco",
-        bbox=(-122.52, 37.70, -122.35, 37.83),
-        firehouses_path=_first_existing(raw / "sf_firehouses.csv", processed / "sf_firehouses.csv"),
-        incidents_path=_first_existing(processed / "od_pairs_sf_ems.csv"),
-        graph_path=_first_existing(raw / "sf_drive.graphml"),
-        hybrid_model_path=None,
-        default_n_houses=None,
-        center=(-122.42, 37.77),
-        notes="Stub: provide firehouses CSV (lat/lon) to plan; SF EMS OD is medical, not FDNY",
-        meta={"demand_lat": "dest_lat", "demand_lon": "dest_lon"},
-    )
-
-
 def _london_spec(root: Path = ROOT) -> CitySpec:
     raw = root / "data" / "raw" / "london"
     processed = root / "data" / "processed"
@@ -117,9 +71,9 @@ def _london_spec(root: Path = ROOT) -> CitySpec:
         default_n_houses=None,
         center=(-0.12, 51.50),
         notes=(
-            "PRIMARY study city (LFB). Planner CSV has attendance seconds "
+            "Study city (LFB). Planner CSV has attendance seconds "
             "(mobilise→arrive), station_ground, deployed_from, busy_flag, cal_year. "
-            "OSM graph optional until OS NGD / london_drive.graphml is built."
+            "Drive graph built by emvro.road_distance."
         ),
         meta={
             "demand_lat": "dest_lat",
@@ -133,18 +87,11 @@ def _london_spec(root: Path = ROOT) -> CitySpec:
     )
 
 
-CITY_BUILDERS = {
-    "nyc": _nyc_spec,
-    "new_york": _nyc_spec,
-    "new_york_city": _nyc_spec,
-    "sf": _sf_stub,
-    "san_francisco": _sf_stub,
-    "london": _london_spec,
-}
+CITY_BUILDERS = {"london": _london_spec}
 
 
 def list_cities() -> list[str]:
-    return sorted({"nyc", "sf", "london"})
+    return sorted(CITY_BUILDERS)
 
 
 def get_city(city_id: str, *, root: Path = ROOT) -> CitySpec:
@@ -190,7 +137,7 @@ def load_firehouses(spec: CitySpec) -> pd.DataFrame:
         raise FileNotFoundError(f"No firehouses path for city {spec.id}")
     path = Path(spec.firehouses_path)
     df = pd.read_csv(path)
-    # NYC Open Data schema
+    # latitude/longitude column names
     if "latitude" in df.columns and "longitude" in df.columns:
         out = pd.DataFrame(
             {

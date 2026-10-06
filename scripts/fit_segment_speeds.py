@@ -6,7 +6,7 @@ from an OSM drive graph. See emvro.segment_speeds for the Zhan et al.-style idea
 If data/raw/london/london_drive.graphml does not exist this prints what is
 needed + a JSON stub plan and exits 0. If it exists (or --graph is given), it
 samples OD node pairs, builds a *synthetic* route-time target from a Kolesar
-curve on crow-fly distance (fit on LFB 2024 if available, else NYC prior), then
+curve on crow-fly distance (fit on LFB 2024 if available, else the London default), then
 fits a ridge on the routes' summed edge features and reports the error. This is
 a lightweight plumbing check, NOT a calibrated model: replace the synthetic
 target with observed LFB/GPS route times once a real graph + routes exist.
@@ -103,7 +103,7 @@ def main() -> int:
 
     import networkx as nx
 
-    # Kolesar target curve (LFB-fit if possible else NYC prior)
+    # Kolesar target curve (LFB-fit if possible else the London default)
     try:
         from emvro.kolesar import fit_kolesar
         from emvro.london_eval import load_london
@@ -112,7 +112,7 @@ def main() -> int:
         kol = fit_kolesar(inc["crow_km"], inc["drive_s"])
         src = "kolesar fit on LFB 2024 drive_s"
     except Exception:  # noqa: BLE001
-        kol, src = KolesarModel.nyc_default(), "NYC default prior"
+        kol, src = KolesarModel.london_default(), "London default curve"
 
     rng = np.random.default_rng(42)
     nodes = list(G.nodes)
