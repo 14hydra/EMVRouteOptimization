@@ -60,7 +60,7 @@ def _path_ll(G, path: list) -> list[list[float]]:
 
 def _timed_track(G, nodes: list, total_s: float, n: int = 240) -> list[list[float]]:
     """[lat, lon, cum_seconds] along firetruck path, rescaled to model total_s."""
-    from emvro.routing.firetruck import SECONDS_KEY
+    from emvro.firetruck_route import SECONDS_KEY
 
     if len(nodes) < 2:
         ll = _path_ll(G, nodes)
@@ -209,7 +209,7 @@ def _predict_drive_s(
 
 
 def _route_firetruck(G, lat1, lon1, lat2, lon2):
-    from emvro.routing.firetruck import firetruck_route_latlon, path_firetruck_stats
+    from emvro.firetruck_route import firetruck_route_latlon, path_firetruck_stats
 
     res = firetruck_route_latlon(G, lon1, lat1, lon2, lat2)
     if not res.ok or not res.node_path:
@@ -272,7 +272,7 @@ def main() -> int:
     )
 
     print(f"Preparing firetruck graph @ hour {args.hour}…")
-    from emvro.routing.firetruck import prepare_firetruck_graph
+    from emvro.firetruck_route import prepare_firetruck_graph
 
     G = prepare_firetruck_graph(args.graph, hour=args.hour)
 
