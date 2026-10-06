@@ -1,0 +1,296 @@
+{
+  "n_trips": 1024833,
+  "years": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "median_drive_s": 265.0,
+  "median_turnout_s": 71.0,
+  "median_road_km": 2.500380853792007,
+  "hour_median_pace_s_per_km": {
+    "0": 97.0,
+    "1": 97.9,
+    "2": 98.7,
+    "3": 99.2,
+    "4": 99.1,
+    "5": 97.9,
+    "6": 100.3,
+    "7": 103.4,
+    "8": 105.7,
+    "9": 103.0,
+    "10": 100.8,
+    "11": 100.9,
+    "12": 103.0,
+    "13": 103.2,
+    "14": 104.0,
+    "15": 106.4,
+    "16": 106.5,
+    "17": 107.4,
+    "18": 106.0,
+    "19": 102.7,
+    "20": 99.2,
+    "21": 97.0,
+    "22": 97.5,
+    "23": 97.3
+  },
+  "hour_median_turnout_s": {
+    "0": 90.0,
+    "1": 99.0,
+    "2": 103.0,
+    "3": 106.0,
+    "4": 107.0,
+    "5": 108.0,
+    "6": 107.0,
+    "7": 83.0,
+    "8": 70.0,
+    "9": 65.0,
+    "10": 66.0,
+    "11": 65.0,
+    "12": 61.0,
+    "13": 61.0,
+    "14": 62.0,
+    "15": 65.0,
+    "16": 67.0,
+    "17": 68.0,
+    "18": 67.0,
+    "19": 65.0,
+    "20": 64.0,
+    "21": 67.0,
+    "22": 69.0,
+    "23": 78.0
+  },
+  "borough_mean_attendance_s_2024_25": {
+    "KENSINGTON AND CHELSEA": 275.8,
+    "LAMBETH": 277.4,
+    "TOWER HAMLETS": 287.7,
+    "CITY OF LONDON": 299.9,
+    "HAMMERSMITH AND FULHAM": 301.4,
+    "ISLINGTON": 302.2,
+    "HACKNEY": 302.4,
+    "SOUTHWARK": 304.1,
+    "CAMDEN": 308.1,
+    "WANDSWORTH": 310.7,
+    "LEWISHAM": 315.3,
+    "WESTMINSTER": 324.3,
+    "CROYDON": 325.7,
+    "HARINGEY": 327.7,
+    "NEWHAM": 329.3,
+    "MERTON": 331.6,
+    "GREENWICH": 331.7,
+    "WALTHAM FOREST": 332.7,
+    "SUTTON": 333.3,
+    "KINGSTON UPON THAMES": 350.2,
+    "EALING": 355.1,
+    "BARNET": 359.2,
+    "HARROW": 360.5,
+    "BRENT": 361.2,
+    "BEXLEY": 361.5,
+    "HOUNSLOW": 362.3,
+    "BARKING AND DAGENHAM": 364.6,
+    "RICHMOND UPON THAMES": 366.9,
+    "REDBRIDGE": 371.9,
+    "BROMLEY": 381.3,
+    "HAVERING": 382.1,
+    "ENFIELD": 383.0,
+    "HILLINGDON": 392.9
+  },
+  "boroughs_over_6_min": [
+    "HARROW",
+    "BRENT",
+    "BEXLEY",
+    "HOUNSLOW",
+    "BARKING AND DAGENHAM",
+    "RICHMOND UPON THAMES",
+    "REDBRIDGE",
+    "BROMLEY",
+    "HAVERING",
+    "ENFIELD",
+    "HILLINGDON"
+  ],
+  "delay_reason_share": {
+    "Appliance/Equipment defect": 0.0012,
+    "Weather conditions": 0.0019,
+    "Mob/Radio problems when mobilised": 0.0023,
+    "On outside duty when mobilised": 0.0025,
+    "Arrived but held up - Other reason": 0.003,
+    "Address incomplete/wrong": 0.0101,
+    "Traffic calming measures": 0.0197,
+    "Traffic, roadworks, etc": 0.0571
+  },
+  "model_mae_2025_s": {
+    "Constant guess (median)": 111.86,
+    "Straight line @ 32 km/h": 95.2,
+    "Road distance @ 35 km/h": 80.79,
+    "Kolesar (straight line)": 71.39,
+    "Kolesar (road distance)": 68.66,
+    "LightGBM (distance + time)": 64.17,
+    "LightGBM + street features": 61.73
+  },
+  "shap_mean_abs_s": {
+    "share_20mph": 4.91,
+    "calming_per_km": 3.22,
+    "turns_per_km": 3.03,
+    "share_residential": 2.18,
+    "share_primary": 2.04,
+    "share_minor": 1.84,
+    "share_tertiary": 1.57,
+    "junctions_per_km": 1.45,
+    "signals_per_km": 1.35,
+    "share_major": 1.34,
+    "share_bridge_tunnel": 1.2,
+    "share_oneway": 1.08,
+    "mean_lanes": 1.0,
+    "crossings_per_km": 0.78,
+    "share_bus_lane": 0.67,
+    "share_secondary": 0.34,
+    "roundabouts_per_km": 0.29,
+    "give_way_per_km": 0.22,
+    "sharp_turns_per_km": 0.02
+  },
+  "shap_scale_s": {
+    "road_km": 63.6,
+    "crow_km": 22.1,
+    "hour": 7.3
+  },
+  "ablation_mae_increase_s": {
+    "All street features": 2.444,
+    "Road class mix": 0.202,
+    "Junctions / turns / roundabouts": 0.122,
+    "20 mph limits": 0.077,
+    "Lanes": 0.054,
+    "Traffic signals": 0.051,
+    "Traffic calming": 0.048,
+    "Bridges / tunnels": 0.041,
+    "Crossings / give-way": 0.039,
+    "One-way streets": 0.026,
+    "Bus lanes": -0.002
+  },
+  "pace_effects_s_per_km_per_sd": {
+    "share_major": {
+      "coef": -3.28,
+      "lo": -3.69,
+      "hi": -2.97,
+      "sd_of_feature": 0.25
+    },
+    "share_primary": {
+      "coef": -2.94,
+      "lo": -3.41,
+      "hi": -2.61,
+      "sd_of_feature": 0.32
+    },
+    "share_secondary": {
+      "coef": -0.73,
+      "lo": -1.0,
+      "hi": -0.54,
+      "sd_of_feature": 0.18
+    },
+    "share_tertiary": {
+      "coef": 0.11,
+      "lo": -0.17,
+      "hi": 0.39,
+      "sd_of_feature": 0.22
+    },
+    "share_minor": {
+      "coef": 1.78,
+      "lo": 1.58,
+      "hi": 1.96,
+      "sd_of_feature": 0.08
+    },
+    "share_oneway": {
+      "coef": 1.65,
+      "lo": 1.44,
+      "hi": 1.86,
+      "sd_of_feature": 0.22
+    },
+    "share_20mph": {
+      "coef": 2.13,
+      "lo": 1.95,
+      "hi": 2.34,
+      "sd_of_feature": 0.38
+    },
+    "share_bus_lane": {
+      "coef": -0.56,
+      "lo": -0.73,
+      "hi": -0.38,
+      "sd_of_feature": 0.12
+    },
+    "share_bridge_tunnel": {
+      "coef": -0.01,
+      "lo": -0.2,
+      "hi": 0.13,
+      "sd_of_feature": 0.09
+    },
+    "mean_lanes": {
+      "coef": -0.93,
+      "lo": -1.12,
+      "hi": -0.75,
+      "sd_of_feature": 0.39
+    },
+    "signals_per_km": {
+      "coef": 2.63,
+      "lo": 2.35,
+      "hi": 2.97,
+      "sd_of_feature": 5.27
+    },
+    "calming_per_km": {
+      "coef": 1.61,
+      "lo": 1.39,
+      "hi": 1.81,
+      "sd_of_feature": 2.67
+    },
+    "crossings_per_km": {
+      "coef": 0.77,
+      "lo": 0.57,
+      "hi": 1.0,
+      "sd_of_feature": 1.7
+    },
+    "give_way_per_km": {
+      "coef": -0.33,
+      "lo": -0.53,
+      "hi": -0.1,
+      "sd_of_feature": 0.86
+    },
+    "junctions_per_km": {
+      "coef": 0.62,
+      "lo": 0.39,
+      "hi": 0.86,
+      "sd_of_feature": 3.39
+    },
+    "turns_per_km": {
+      "coef": 0.74,
+      "lo": 0.48,
+      "hi": 0.99,
+      "sd_of_feature": 1.38
+    },
+    "sharp_turns_per_km": {
+      "coef": -0.49,
+      "lo": -0.66,
+      "hi": -0.33,
+      "sd_of_feature": 0.12
+    },
+    "roundabouts_per_km": {
+      "coef": -0.39,
+      "lo": -0.57,
+      "hi": -0.18,
+      "sd_of_feature": 0.83
+    }
+  },
+  "figures": [
+    "01_time_distributions.png",
+    "02_time_vs_distance.png",
+    "03_by_hour.png",
+    "04_attendance_by_borough.png",
+    "05_delay_reasons.png",
+    "06_monthly_drive_time.png",
+    "07_model_comparison.png",
+    "08_street_shap.png",
+    "09_street_ablation.png",
+    "10_street_effects_per_km.png",
+    "11_shap_dependence.png"
+  ],
+  "caveat": "Street features describe the shortest legal route, not the route driven; associations, not causes."
+}

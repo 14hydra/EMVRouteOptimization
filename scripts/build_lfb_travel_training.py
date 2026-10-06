@@ -14,6 +14,9 @@ Sources (London Datastore, Open Government Licence):
     scripts/build_london_firehouses.py): the real station buildings.
   - London drive graph (OpenStreetMap, emvro.road_distance): road_km is the
     shortest legal route from station to incident, one-way streets respected.
+  - Street characteristics along that route (emvro.route_features): road class
+    shares, one-way / 20 mph / bus-lane shares, lanes, signals, traffic calming,
+    crossings, give-way signs, junctions, turns and roundabouts per km.
 
 Kept trips: the engine left from an LFB station (DeployedFromLocation is Home
 Station or Other Station), was not already out on the road ("On outside duty
@@ -140,20 +143,28 @@ def main() -> int:
     counts["crow_km_0_15"] = len(df)
 
     graph_path = RAW / "london_drive.graphml"
+    street = None
     if args.crow_only or not graph_path.exists():
         df["road_km"] = df["crow_km"] * 1.25
+        df = df.reset_index(drop=True)
         counts["routable_on_road_graph"] = int(len(df))
         counts["road_km_source"] = "crow_x1.25_proxy"
         if not args.crow_only:
-            print("NOTE: london_drive.graphml missing — using crow×1.25 as road_km proxy")
-    else:
-        from emvro.road_distance import RoadRouter, load_or_build_graph
+            print("NOTE: london_drive.graphml missing — using crow×1.25 as road_km proxy (no street features)")
+        from emvro.route_features import ROUTE_FEATURES
 
-        router = RoadRouter(load_or_build_graph())
+        street = pd.DataFrame({c: np.nan for c in ROUTE_FEATURES}, index=df.index)
+    else:
+        from emvro.road_distance import load_or_build_graph
+        from emvro.route_features import RouteFeatureRouter, edge_feature_table
+
+        G = load_or_build_graph()
+        router = RouteFeatureRouter(G, edge_feature_table(G))
         df["road_km"] = router.road_km(df["start_lat"], df["start_lon"], df["dest_lat"], df["dest_lon"])
-        df = df[np.isfinite(df["road_km"])]
+        df = df[np.isfinite(df["road_km"])].reset_index(drop=True)
         counts["routable_on_road_graph"] = len(df)
         counts["road_km_source"] = "osm_shortest_path"
+        street = router.route_features(df["start_lat"], df["start_lon"], df["dest_lat"], df["dest_lon"])
 
     mobilised = pd.to_datetime(df["DateAndTimeMobilised"], format="%d/%m/%Y %H:%M", errors="coerce")
     out = pd.DataFrame(
@@ -180,6 +191,7 @@ def main() -> int:
             "drive_s": df["travel_s"],
         }
     )
+    out = pd.concat([out, street.set_index(out.index)], axis=1)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False)
     for k, v in counts.items():

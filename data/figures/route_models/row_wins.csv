@@ -1,2 +1,0 @@
-rank,trip_id,label,borough,zipcode,civ_min,emv_min,emv_no_row_min,saved_vs_civ_min,pct_vs_civ,row_attrib_min,emv_only_edges,start_lat,start_lon,dest_lat,dest_lon,hour,weather
-1,79721024,Queens → ZIP 11414,QUEENS,11414.0,6.72,6.21,6.61,0.52,7.71,0.41,2,40.67227919,-73.85283804,40.65959399780355,-73.84999835643863,17,rain

@@ -8,13 +8,9 @@ Travel time ``T`` (seconds) as a function of distance ``d`` (km)::
     T = a + b * sqrt(d)     for d <= breakpoint   (still accelerating)
     T = c + e * d           for d >  breakpoint   (cruising speed)
 
-The published fit used miles; this module works in km internally. The default
-NYC coefficients below are stored in the paper's (miles, seconds) units and
-converted via :data:`KM_PER_MILE`.
-
-NOTE: ``NYC_DEFAULT_MILES`` are approximate, continuity-preserving values
-intended as a prior / fallback. Verify against the paper's tables before
-citing them, or use :func:`fit_kolesar` to refit on local (e.g. London) trips.
+Distances are km. :func:`fit_kolesar` refits the curve on local trips;
+``KolesarModel.london_default`` is that fit on London Fire Brigade trips and is
+only a fallback when a caller has too few trips to fit its own.
 """
 
 from __future__ import annotations
@@ -25,15 +21,14 @@ from typing import Any, Mapping
 import numpy as np
 import pandas as pd
 
-KM_PER_MILE = 1.609344
-
-# (a, b, c, e, breakpoint) with d in miles, T in seconds.
-NYC_DEFAULT_MILES: dict[str, float] = {
-    "a": 0.0,
-    "b": 176.5,
-    "c": 48.0,
-    "e": 145.0,
-    "breakpoint": 0.65,
+# Fit on 701,000 LFB engine trips 2021-2024 (scripts/train_travel_time_lfb.py):
+# real station origin, straight-line km, recorded driving time (TravelTimeSeconds).
+LONDON_DEFAULT_KM: dict[str, float] = {
+    "a": 15.846,
+    "b": 180.913,
+    "c": 145.697,
+    "e": 71.783,
+    "breakpoint_km": 1.913,
 }
 
 
@@ -68,16 +63,9 @@ class KolesarModel:
         )
 
     @classmethod
-    def nyc_default(cls) -> "KolesarModel":
-        """NYC prior converted from (miles, s) to (km, s)."""
-        p = NYC_DEFAULT_MILES
-        return cls(
-            a=p["a"],
-            b=p["b"] / np.sqrt(KM_PER_MILE),  # b*sqrt(d_mi) = b*sqrt(d_km/k)
-            c=p["c"],
-            e=p["e"] / KM_PER_MILE,
-            breakpoint_km=p["breakpoint"] * KM_PER_MILE,
-        )
+    def london_default(cls) -> "KolesarModel":
+        """London fallback curve (see ``LONDON_DEFAULT_KM``)."""
+        return cls.from_dict(LONDON_DEFAULT_KM)
 
 
 def _lstsq(x: np.ndarray, y: np.ndarray, robust: bool, n_iter: int = 20) -> np.ndarray:

@@ -1,38 +1,5 @@
-"""EMV route optimization helpers."""
+"""London Fire Brigade station placement: travel-time model and facility location.
 
-from .opendata import DATASETS, download_dataset, download_geojson_dataset, sodaclient_get
-from .depots import infer_start_locations, dispatch_area_borough, filter_hospital_bays
-from .first_due import infer_first_due_starts, first_due_summary
-from .geometry import zip_centroids_from_modzcta
-from .csl import build_csl_points, build_csl_from_zip_centroids, incident_volume_by_zip
-from .gmaps import GoogleMapsControl, classify_origin_with_gmaps
-from .travel_time import build_travel_time_feature_table, prepare_matrix, feature_list
-from .weather import join_weather_features, WEATHER_FEATURE_COLUMNS
-from .street_features import attach_street_features, STREET_FEATURE_COLUMNS
-from .route_eta import prepare_route_eta_matrix
-
-__all__ = [
-    "DATASETS",
-    "download_dataset",
-    "download_geojson_dataset",
-    "sodaclient_get",
-    "infer_start_locations",
-    "infer_first_due_starts",
-    "first_due_summary",
-    "dispatch_area_borough",
-    "filter_hospital_bays",
-    "zip_centroids_from_modzcta",
-    "build_csl_points",
-    "build_csl_from_zip_centroids",
-    "incident_volume_by_zip",
-    "GoogleMapsControl",
-    "classify_origin_with_gmaps",
-    "build_travel_time_feature_table",
-    "prepare_matrix",
-    "feature_list",
-    "join_weather_features",
-    "WEATHER_FEATURE_COLUMNS",
-    "attach_street_features",
-    "STREET_FEATURE_COLUMNS",
-    "prepare_route_eta_matrix",
-]
+Modules are imported directly (e.g. ``from emvro.road_distance import RoadRouter``)
+so importing the package does not pull in osmnx, scipy or LightGBM.
+"""
