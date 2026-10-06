@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>New fire station vs existing — London race</title>
+<style>
+  :root { --panel: rgba(10,14,22,.90); --ok:#3dd68c; --old:#94a3b8; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#000; color:#e8eef7;
+    font-family:"Segoe UI", system-ui, sans-serif; }
+  #map { position:absolute; inset:0; }
+  gmp-map-3d { width:100%; height:100%; }
+  #hud { position:absolute; inset:0; pointer-events:none; z-index:5;
+    display:flex; flex-direction:column; justify-content:space-between; padding:14px 16px; }
+  .top { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; }
+  .card { background:var(--panel); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.12);
+    border-radius:14px; padding:12px 14px; box-shadow:0 12px 40px rgba(0,0,0,.45); }
+  .card.main { max-width:540px; }
+  .card h1 { margin:0 0 4px; font-size:15px; font-weight:700; color:#fff; }
+  .sub { font-size:12px; color:#9aa3ad; margin-bottom:10px; line-height:1.4; }
+  .pills { display:flex; flex-direction:column; gap:8px; }
+  .pill { border-radius:10px; padding:10px 12px; border:1px solid rgba(255,255,255,.10);
+    background:rgba(255,255,255,.03); display:flex; gap:10px; align-items:center; }
+  .pill.winner { border-color:rgba(61,214,140,.45); background:rgba(61,214,140,.08); }
+  .pill .swatch { width:10px; height:36px; border-radius:3px; flex-shrink:0; }
+  .pill .who { font-size:12px; opacity:.85; }
+  .pill .time { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .pill .eta { font-size:11px; opacity:.65; margin-top:2px; }
+  .badge { display:inline-block; margin-top:10px; padding:6px 10px; border-radius:999px;
+    background:rgba(61,214,140,.12); color:var(--ok); font-size:12px; font-weight:700;
+    border:1px solid rgba(61,214,140,.35); }
+  .legend { display:flex; flex-direction:column; gap:6px; font-size:12px; color:#c5cede; max-width:260px; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:16px; height:4px; border-radius:2px; display:inline-block; }
+  .bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; }
+  .controls { pointer-events:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  button { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.12);
+    color:#fff; border-radius:10px; padding:10px 14px; font-weight:600; font-size:13px; }
+  button:hover { background:rgba(255,255,255,.2); }
+  button.primary { background:#14532d; border-color:#22c55e; }
+  button.on { background:#1f6f4a; border-color:#3dd68c; }
+  .hint { font-size:11px; color:#8b95a5; max-width:380px; text-align:right; line-height:1.4; }
+  #err { display:none; position:absolute; left:50%; top:42%; transform:translate(-50%,-50%);
+    z-index:20; max-width:560px; width:calc(100% - 40px); background:rgba(40,12,12,.94);
+    color:#ffd7d7; border:1px solid #ff6b6b; border-radius:12px; padding:16px 18px; font-size:13px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="err"></div>
+<div id="hud">
+  <div class="top">
+    <div class="card main">
+      <h1>Firehouse race · __LABEL__</h1>
+      <div class="sub">Same firetruck routing (arterials preferred) · attendance = LFB drive model + turnout · green = newly placed station</div>
+      <div class="pills" id="racer-pills"></div>
+      <div class="badge" id="badge">New station __PCT__% faster attendance</div>
+    </div>
+    <div class="card">
+      <div class="legend" id="legend"></div>
+      <div style="margin-top:10px;font-size:12px;color:#9aa3ad;line-height:1.45">
+        <b>Flash</b> marks the incident. Camera chases the winning truck.
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="controls">
+      <button class="primary" id="btn-replay">Replay race</button>
+      <button class="on" id="btn-camera">Camera</button>
+      <button id="btn-overview">Overview</button>
+    </div>
+    <div class="hint">Grey = existing LFB station · Green = optimizer-opened site · Paths from firetruck Dijkstra</div>
+  </div>
+</div>
+
+<script>
+(g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k of Object.keys(g))e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+  key: "__GMAPS_KEY__",
+  v: "weekly"
+});
+</script>
+
+<script type="module">
+const DATA = __DATA__;
+const RACERS = DATA.racers || [];
+const raceDurationSec = 32;
+
+function showErr(msg) {
+  const el = document.getElementById("err");
+  el.style.display = "block";
+  el.innerHTML = msg;
+}
+function fmt(minFrac) {
+  const totalSec = Math.max(0, minFrac) * 60;
+  const m = Math.floor(totalSec / 60);
+  const s = Math.floor(totalSec % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function lerpAngle(a, b, t) {
+  const d = ((b - a + 540) % 360) - 180;
+  return a + d * t;
+}
+function bearing(a, b) {
+  const φ1 = a.lat * Math.PI / 180, φ2 = b.lat * Math.PI / 180;
+  const Δλ = (b.lng - a.lng) * Math.PI / 180;
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function toPath(coords, alt = 6) {
+  return coords.map(([lat, lon]) => ({ lat, lng: lon, altitude: alt }));
+}
+function totalS(r) {
+  const c = r.coords;
+  if (!c || !c.length) return Math.max(1, (r.minutes || 1) * 60);
+  return Math.max(1, c[c.length - 1][2] ?? (r.minutes * 60));
+}
+function pointAtTime(coords, modelSec) {
+  const n = coords.length;
+  if (n < 1) return { pos: { lat: 0, lng: 0, altitude: 20 }, hdg: 0, done: true };
+  if (n === 1 || modelSec <= 0) {
+    const c = coords[0];
+    return { pos: { lat: c[0], lng: c[1], altitude: 22 }, hdg: 0, done: false };
+  }
+  const total = coords[n - 1][2] || 1;
+  const t = Math.min(total, Math.max(0, modelSec));
+  let j = 1;
+  while (j < n && coords[j][2] < t) j++;
+  j = Math.min(j, n - 1);
+  const a = coords[j - 1], b = coords[j];
+  const t0 = a[2], t1 = b[2];
+  const local = t1 <= t0 ? 1 : (t - t0) / (t1 - t0);
+  const pos = {
+    lat: lerp(a[0], b[0], local),
+    lng: lerp(a[1], b[1], local),
+    altitude: 22,
+  };
+  const hdg = bearing({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] });
+  return { pos, hdg, done: t >= total - 1e-6 };
+}
+function overviewCamera(coordsList) {
+  let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+  for (const coords of coordsList) {
+    for (const [lat, lon] of coords) {
+      minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+      minLng = Math.min(minLng, lon); maxLng = Math.max(maxLng, lon);
+    }
+  }
+  const spanM = Math.hypot((maxLat - minLat) * 111320, (maxLng - minLng) * 85000);
+  return {
+    center: { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2, altitude: 0 },
+    range: Math.max(1200, spanM * 2.1),
+    tilt: 55,
+    heading: 25,
+  };
+}
+
+(function buildHud() {
+  const pills = document.getElementById("racer-pills");
+  for (const r of RACERS) {
+    const pill = document.createElement("div");
+    pill.className = "pill" + (r.id === DATA.best_id ? " winner" : "");
+    pill.innerHTML =
+      `<div class="swatch" style="background:${r.color}"></div>` +
+      `<div><div class="who">${r.label}</div>` +
+      `<div class="time" id="t-${r.id}">0:00</div>` +
+      `<div class="eta">Attendance ${Number(r.minutes).toFixed(2)} min · drive ${Number(r.drive_s).toFixed(0)}s + turnout ${Number(r.turnout_s).toFixed(0)}s</div></div>`;
+    pills.appendChild(pill);
+  }
+  const legend = document.getElementById("legend");
+  for (const r of RACERS) {
+    const s = document.createElement("span");
+    s.innerHTML = `<i class="sw" style="background:${r.color}"></i> ${r.label}`;
+    legend.appendChild(s);
+  }
+  const flash = document.createElement("span");
+  flash.innerHTML = `<i class="sw" style="background:#f97316"></i> Incident`;
+  legend.appendChild(flash);
+})();
+
+const maxTotalS = Math.max(...RACERS.map(totalS), 1);
+const modelRate = maxTotalS / raceDurationSec;
+const chaseIds = [DATA.best_id, ...RACERS.filter(r => r.id !== DATA.best_id).map(r => r.id)].filter(Boolean);
+
+async function main() {
+  let Map3DElement, Marker3DElement, Polyline3DElement;
+  try {
+    ({ Map3DElement, Marker3DElement, Polyline3DElement } =
+      await google.maps.importLibrary("maps3d"));
+  } catch (err) {
+    showErr(
+      "<b>Google Maps 3D failed to load.</b><br><br>" +
+      "Enable <b>Maps JavaScript API</b> and <b>Map Tiles API</b> " +
+      "(Photorealistic 3D Maps) for this key.<br><br><code>" + String(err) + "</code>"
+    );
+    return;
+  }
+
+  const winner = RACERS.find(r => r.id === DATA.best_id) || RACERS[0];
+  const start = pointAtTime(winner.coords, 0);
+  const overview = overviewCamera(RACERS.map(r => r.coords));
+
+  const map = new Map3DElement({
+    center: { lat: start.pos.lat, lng: start.pos.lng, altitude: 40 },
+    heading: start.hdg,
+    tilt: 60,
+    range: 900,
+    mode: "HYBRID",
+    gestureHandling: "GREEDY",
+  });
+  document.getElementById("map").append(map);
+
+  for (const r of RACERS) {
+    const isNew = r.group === "new";
+    map.append(new Polyline3DElement({
+      path: toPath(r.coords, isNew ? 10 : 6),
+      strokeColor: r.color,
+      outerColor: isNew ? "#14532d" : "#334155",
+      strokeWidth: isNew ? 16 : 11,
+      outerWidth: 0.4,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      drawsOccludedSegments: true,
+    }));
+  }
+
+  const inc = DATA.scenario.incident;
+  const ns = DATA.scenario.new_station;
+  const os = DATA.scenario.old_station;
+  map.append(new Marker3DElement({
+    position: { lat: inc.lat, lng: inc.lon, altitude: 40 },
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "INCIDENT", drawsWhenOccluded: true,
+  }));
+  map.append(new Marker3DElement({
+    position: { lat: ns.lat, lng: ns.lon, altitude: 30 },
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "NEW", drawsWhenOccluded: true,
+  }));
+  map.append(new Marker3DElement({
+    position: { lat: os.lat, lng: os.lon, altitude: 30 },
+    altitudeMode: "RELATIVE_TO_GROUND", extruded: true, label: "OLD", drawsWhenOccluded: true,
+  }));
+
+  const markers = {};
+  for (const r of RACERS) {
+    const m = new Marker3DElement({
+      position: pointAtTime(r.coords, 0).pos,
+      altitudeMode: "RELATIVE_TO_GROUND",
+      extruded: true,
+      label: r.group === "new" ? "NEW TRUCK" : "OLD TRUCK",
+      drawsWhenOccluded: true,
+    });
+    map.append(m);
+    markers[r.id] = m;
+  }
+
+  let cameraTarget = chaseIds[0] || null;
+  let playing = true;
+  let t0 = performance.now();
+  let userRange = 900;
+  let camTransition = null;
+  let incidentPulse = 0;
+
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  const btnCamera = document.getElementById("btn-camera");
+  function setCameraTarget(targetId, { animate = false } = {}) {
+    const prev = cameraTarget;
+    cameraTarget = targetId;
+    const r = RACERS.find(x => x.id === cameraTarget);
+    if (r) {
+      btnCamera.textContent = "Camera: " + r.label;
+      btnCamera.classList.add("on");
+    } else {
+      btnCamera.textContent = "Camera: Free";
+      btnCamera.classList.remove("on");
+      camTransition = null;
+    }
+    if (animate && prev && targetId && prev !== targetId) {
+      const startRange = typeof map.range === "number" ? map.range : userRange;
+      camTransition = {
+        from: prev, to: targetId, startMs: performance.now(),
+        outMs: 600, acrossMs: 800, inMs: 700,
+        startRange, peakRange: Math.max(startRange * 2.8, overview.range * 0.7, 1800),
+        endRange: userRange,
+      };
+    }
+  }
+  setCameraTarget(chaseIds[0] || null);
+
+  map.addEventListener("wheel", () => {
+    setTimeout(() => {
+      if (typeof map.range === "number" && map.range > 80) userRange = map.range;
+    }, 0);
+  });
+
+  document.getElementById("btn-replay").onclick = () => {
+    playing = true;
+    t0 = performance.now();
+    document.getElementById("badge").textContent = "New station __PCT__% faster attendance";
+    setCameraTarget(chaseIds[0] || null);
+  };
+  document.getElementById("btn-camera").onclick = () => {
+    const i = Math.max(0, chaseIds.indexOf(cameraTarget));
+    setCameraTarget(chaseIds[(i + 1) % chaseIds.length], { animate: true });
+  };
+  document.getElementById("btn-overview").onclick = () => {
+    cameraTarget = null;
+    btnCamera.textContent = "Camera: Free";
+    btnCamera.classList.remove("on");
+    map.center = overview.center;
+    map.heading = overview.heading;
+    map.tilt = overview.tilt;
+    map.range = overview.range;
+    userRange = overview.range;
+  };
+
+  function applyCameraTransition(now, poses) {
+    if (!camTransition) return false;
+    const tr = camTransition;
+    const elapsed = now - tr.startMs;
+    const total = tr.outMs + tr.acrossMs + tr.inMs;
+    if (elapsed >= total) { camTransition = null; return false; }
+    const from = poses[tr.from] || pointAtTime(RACERS.find(r => r.id === tr.from).coords, 0);
+    const to = poses[tr.to] || pointAtTime(RACERS.find(r => r.id === tr.to).coords, 0);
+    if (elapsed < tr.outMs) {
+      const u = easeInOut(elapsed / tr.outMs);
+      map.center = { lat: from.pos.lat, lng: from.pos.lng, altitude: 28 + u * 80 };
+      map.heading = from.hdg; map.tilt = lerp(58, 48, u);
+      map.range = lerp(tr.startRange, tr.peakRange, u);
+    } else if (elapsed < tr.outMs + tr.acrossMs) {
+      const u = easeInOut((elapsed - tr.outMs) / tr.acrossMs);
+      map.center = { lat: lerp(from.pos.lat, to.pos.lat, u), lng: lerp(from.pos.lng, to.pos.lng, u), altitude: 110 };
+      map.heading = lerpAngle(from.hdg, to.hdg, u); map.tilt = 48; map.range = tr.peakRange;
+    } else {
+      const u = easeInOut((elapsed - tr.outMs - tr.acrossMs) / tr.inMs);
+      map.center = { lat: to.pos.lat, lng: to.pos.lng, altitude: lerp(110, 28, u) };
+      map.heading = to.hdg; map.tilt = lerp(48, 58, u);
+      map.range = lerp(tr.peakRange, tr.endRange, u);
+    }
+    return true;
+  }
+
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const wall = (now - t0) / 1000;
+    const modelSec = playing ? wall * modelRate : maxTotalS;
+    const poses = {};
+    let allDone = true;
+    let winnerDone = false;
+    incidentPulse = (Math.sin(now / 180) + 1) * 0.5;
+
+    for (const r of RACERS) {
+      const ts = totalS(r);
+      const p = pointAtTime(r.coords, Math.min(modelSec, ts));
+      poses[r.id] = p;
+      markers[r.id].position = p.pos;
+      const el = document.getElementById("t-" + r.id);
+      if (el) el.textContent = fmt(Math.min(r.minutes, Math.min(modelSec, ts) / 60));
+      if (!p.done) allDone = false;
+      if (r.id === DATA.best_id && p.done) winnerDone = true;
+    }
+
+    if (applyCameraTransition(now, poses)) {
+      // mid switch
+    } else if (cameraTarget && poses[cameraTarget]) {
+      const t = poses[cameraTarget];
+      map.center = { lat: t.pos.lat, lng: t.pos.lng, altitude: 28 };
+      map.heading = lerpAngle(Number(map.heading) || t.hdg, t.hdg, 0.14);
+      map.tilt = 58;
+      map.range = userRange;
+    }
+
+    if (!playing) return;
+    if (allDone) {
+      playing = false;
+      const be = RACERS.find(r => r.id === DATA.best_id);
+      const ot = RACERS.find(r => r.id !== DATA.best_id);
+      document.getElementById("badge").textContent =
+        "Done · " + (be?.label || "New") + " " + be?.minutes + " min vs " +
+        (ot?.label || "Old") + " " + ot?.minutes + " min (" + DATA.pct_faster + "% faster)";
+    } else if (winnerDone) {
+      document.getElementById("badge").textContent =
+        "New station arrived · existing truck still en route";
+    } else if (wall < 2.5) {
+      document.getElementById("badge").textContent =
+        "Incident reported · both engines mobilised";
+    }
+  }
+  requestAnimationFrame(tick);
+}
+main().catch((e) => showErr(String(e)));
+</script>
+</body>
+</html>

@@ -55,7 +55,7 @@ attendance  =  predicted driving time (station → incident)  +  that station's 
 
 | # | Model | Role | Status |
 |---|---|---|---|
-| 1 | **Travel-time LightGBM, no station IDs** — gradient-boosted trees, 4-seed average | Predict driving time to any point from any site | Kolesar **EXISTS**; `scripts/train_travel_time_lfb.py` **EXISTS** (crow/context features; full street attrs **PLANNED**) |
+| 1 | **Travel-time LightGBM, no station IDs** — gradient-boosted trees, 4-seed average | Predict driving time to any point from any site | `train_travel_time_lfb.py` **EXISTS** on mobilisation `TravelTimeSeconds` (train 2021–24 / test 2025, MAE ≈ **72 s** vs Kolesar ≈ 76 s); full street attrs **PLANNED** |
 | 2 | **Route model** with learned segment speeds | Dijkstra under learned EMV edge speeds; FOI GPS when available | API scaffold **EXISTS** (`segment_speeds.py`); London graph + FOI **PLANNED** |
 | 3 | **Placement on a directed street graph** | redesign / replace / expand station sets | All three modes **EXISTS**; London OSM/OS NGD graph **PLANNED** |
 
@@ -137,9 +137,15 @@ PYTHONPATH=src python scripts/plan_firehouse_locations.py \
   --city london --mode expand --add-stations 2 --scorer kolesar --no-graph
 
 # 5. Placement-ready travel-time model + 2014 closure scaffolds
+PYTHONPATH=src python scripts/build_lfb_travel_training.py --crow-only   # or without --crow-only once london_drive.graphml exists
 PYTHONPATH=src python scripts/train_travel_time_lfb.py
 PYTHONPATH=src python scripts/validate_london_2014_closures.py
 PYTHONPATH=src python scripts/rank_closed_stations_2014.py
+
+# 6. 3D race: newly placed station vs existing (firetruck routing)
+PYTHONPATH=src python scripts/build_london_drive_graph.py                 # central London OSM graph
+PYTHONPATH=src python scripts/build_firehouse_race_3d.py
+open data/figures/firehouse_race_3d.html
 
 # Synthetic smoke test (no real data)
 PYTHONPATH=src python scripts/plan_firehouse_locations.py --demo

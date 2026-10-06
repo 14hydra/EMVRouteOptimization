@@ -96,12 +96,27 @@ def load_mobilisations() -> pd.DataFrame:
     return m
 
 
+def _load_stations() -> pd.DataFrame:
+    path = RAW / "london_firehouses.csv"
+    s = pd.read_csv(path)
+    if "name" not in s.columns and "facilityname" in s.columns:
+        s = s.rename(columns={"facilityname": "name", "latitude": "lat", "longitude": "lon"})
+    if "lat" not in s.columns and "latitude" in s.columns:
+        s = s.rename(columns={"latitude": "lat", "longitude": "lon"})
+    return s.set_index("name")[["lat", "lon"]]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "processed" / "lfb_travel_training.csv")
+    ap.add_argument(
+        "--crow-only",
+        action="store_true",
+        help="Skip road-graph distances (set road_km ≈ 1.25×crow). Use when london_drive.graphml is not built yet.",
+    )
     args = ap.parse_args()
 
-    stations = pd.read_csv(RAW / "london_firehouses.csv").set_index("name")[["lat", "lon"]]
+    stations = _load_stations()
     mob = load_mobilisations()
     counts = {"mobilisations": len(mob)}
 
@@ -124,12 +139,21 @@ def main() -> int:
     df = df[(df["crow_km"] > 0) & (df["crow_km"] <= MAX_CROW_KM)]
     counts["crow_km_0_15"] = len(df)
 
-    from emvro.road_distance import RoadRouter, load_or_build_graph
+    graph_path = RAW / "london_drive.graphml"
+    if args.crow_only or not graph_path.exists():
+        df["road_km"] = df["crow_km"] * 1.25
+        counts["routable_on_road_graph"] = int(len(df))
+        counts["road_km_source"] = "crow_x1.25_proxy"
+        if not args.crow_only:
+            print("NOTE: london_drive.graphml missing — using crow×1.25 as road_km proxy")
+    else:
+        from emvro.road_distance import RoadRouter, load_or_build_graph
 
-    router = RoadRouter(load_or_build_graph())
-    df["road_km"] = router.road_km(df["start_lat"], df["start_lon"], df["dest_lat"], df["dest_lon"])
-    df = df[np.isfinite(df["road_km"])]
-    counts["routable_on_road_graph"] = len(df)
+        router = RoadRouter(load_or_build_graph())
+        df["road_km"] = router.road_km(df["start_lat"], df["start_lon"], df["dest_lat"], df["dest_lon"])
+        df = df[np.isfinite(df["road_km"])]
+        counts["routable_on_road_graph"] = len(df)
+        counts["road_km_source"] = "osm_shortest_path"
 
     mobilised = pd.to_datetime(df["DateAndTimeMobilised"], format="%d/%m/%Y %H:%M", errors="coerce")
     out = pd.DataFrame(
@@ -159,7 +183,10 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False)
     for k, v in counts.items():
-        print(f"{k:<34}{v:>10,}")
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            print(f"{k:<34}{v:>10,}")
+        else:
+            print(f"{k:<34}{v}")
     print(out.groupby("cal_year").size().to_string())
     print(f"-> {args.out}")
     return 0

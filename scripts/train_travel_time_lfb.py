@@ -67,10 +67,21 @@ def add_features(df: pd.DataFrame, borough_cats: list[str]) -> pd.DataFrame:
 def make_regressor(seed: int):
     import lightgbm as lgb
 
+    # Slightly deeper bag than the first crow-only prototype: more trees, L1 loss
+    # matches MAE; still placement-safe (no station IDs).
     return lgb.LGBMRegressor(
-        n_estimators=400, learning_rate=0.04, num_leaves=31, min_child_samples=50,
-        subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=1.0,
-        objective="l1", random_state=seed, n_jobs=4, verbose=-1,
+        n_estimators=600,
+        learning_rate=0.035,
+        num_leaves=47,
+        min_child_samples=40,
+        subsample=0.85,
+        subsample_freq=1,
+        colsample_bytree=0.85,
+        reg_lambda=1.2,
+        objective="l1",
+        random_state=seed,
+        n_jobs=4,
+        verbose=-1,
     )
 
 
